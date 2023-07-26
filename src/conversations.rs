@@ -148,42 +148,53 @@ impl Chatgpt {
 }
 
 async fn get_history_from_database(executor: &Pool<Sqlite>, parent: MessageId) -> Vec<ChatMessage> {
-	let mut history = Vec::with_capacity(4);
-	history.push(ChatMessage {
+	let message_id = *parent.as_u64() as i64;
+	let stored_history = query!(
+		"
+		WITH RECURSIVE chain (
+			next,
+			input_n,
+			output_n
+		)
+		AS (
+			SELECT parent,
+					input,
+					output
+				FROM conversations
+				WHERE message = ?
+			UNION ALL
+			SELECT parent,
+					input,
+					output
+				FROM chain,
+					conversations
+				WHERE message = next
+				LIMIT 20
+		)
+		SELECT input_n AS input,
+				output_n AS output
+			FROM chain;
+		",
+		message_id
+	)
+	.fetch_all(executor)
+	.await
+	.unwrap();
+	std::iter::once(ChatMessage {
 		role: Role::System,
 		content: String::from(SYSTEM_MESSAGE),
-	});
-	let mut stored_history = Vec::with_capacity(2);
-	let mut last_parent = *parent.as_u64() as i64;
-	loop {
-		let Some(record) = query!(
-			"
-			SELECT
-				input, output, parent
-			FROM
-				conversations
-			WHERE
-				message = ?
-			",
-			last_parent
-		).fetch_optional(executor).await.unwrap() else {
-			break;
-		};
-
-		stored_history.push(ChatMessage {
-			role: Role::Assistant,
-			content: record.output,
-		});
-		stored_history.push(ChatMessage {
-			role: Role::User,
-			content: record.input,
-		});
-		if let Some(parent) = record.parent {
-			last_parent = parent;
-		} else {
-			break;
-		}
-	}
-	history.extend(stored_history.drain(..).rev());
-	history
+	})
+	.chain(stored_history.into_iter().rev().flat_map(|record| {
+		[
+			ChatMessage {
+				role: Role::User,
+				content: record.input,
+			},
+			ChatMessage {
+				role: Role::Assistant,
+				content: record.output,
+			},
+		]
+	}))
+	.collect()
 }
