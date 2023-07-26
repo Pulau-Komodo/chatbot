@@ -21,9 +21,8 @@ impl Chatgpt {
 	/// `api_url` is the URL of the /v1/chat/completions endpoint. Can be used to set a proxy.
 	pub fn new<S>(api_key: S, api_url: Option<Url>) -> Result<Self, ()>
 	where
-		S: Into<String>,
+		S: Display,
 	{
-		let api_key = api_key.into();
 		let api_url = api_url
 			.unwrap_or_else(|| Url::parse("https://api.openai.com/v1/chat/completions").unwrap());
 		let mut headers = HeaderMap::new();
