@@ -9,8 +9,7 @@ use crate::{
 	chatgpt::{ChatGptModel, ChatMessage, Chatgpt, Role},
 };
 
-const SYSTEM_MESSAGE: &str =
-	"You are a computer assistant. Reply tersely and robotty. Do not apologize.";
+const SYSTEM_MESSAGE: &str = "You are a computer assistant. Reply tersely and robotically.";
 const MODEL: ChatGptModel = ChatGptModel::Gpt35Turbo;
 const TEMPERATURE: f32 = 0.5;
 const MAX_TOKENS: u32 = 100;
