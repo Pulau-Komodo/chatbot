@@ -1,0 +1,32 @@
+[package]
+name = "chatbot"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools = "0.11.0"
+sqlx = { version = "0.7.1", default-features = false, features = [
+	"macros",
+	"runtime-tokio",
+	"sqlite",
+	"chrono",
+] }
+serenity = { version = "0.11.6", default-features = false, features = [
+	"builder",
+	"cache",
+	"collector",
+	"client",
+	"gateway",
+	"model",
+	"rustls_backend",
+	"chrono",
+] }
+tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }
+chrono = { version = "0.4.26", default-features = false, features = [
+	"clock",
+	"std",
+] }
+reqwest = "0.11.18"
+serde = "1.0.175"
