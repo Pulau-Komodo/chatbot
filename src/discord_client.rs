@@ -29,8 +29,11 @@ impl DiscordEventHandler {
 #[async_trait]
 impl EventHandler for DiscordEventHandler {
 	async fn message(&self, context: Context, message: Message) {
-		if !message.is_own(&context.cache) && !message.content.is_empty() {
-			let own_id = context.cache.current_user_id();
+		let own_id = context.cache.current_user_id();
+		if !message.is_own(&context.cache)
+			&& message.mentions_user_id(own_id)
+			&& !message.content.is_empty()
+		{
 			if let Some(text) = strip_mention(&message.content, own_id) {
 				let text = if !text.is_empty() {
 					// A normal message conventionally mentioning the bot.
