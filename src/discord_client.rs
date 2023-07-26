@@ -28,16 +28,13 @@ impl DiscordEventHandler {
 
 #[async_trait]
 impl EventHandler for DiscordEventHandler {
-	async fn message(&self, context: Context, mut message: Message) {
+	async fn message(&self, context: Context, message: Message) {
 		if !message.is_own(&context.cache) && !message.content.is_empty() {
 			let own_id = context.cache.current_user_id();
 			if let Some(text) = strip_mention(&message.content, own_id) {
 				let text = if !text.is_empty() {
 					// A normal message conventionally mentioning the bot.
 					String::from(text)
-				} else if let Some(referenced) = std::mem::take(&mut message.referenced_message) {
-					// A message that had only a mention, and replied to something.
-					referenced.content
 				} else {
 					// A message that had only a mention.
 					return;
