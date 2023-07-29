@@ -12,7 +12,7 @@ use crate::{
 const SYSTEM_MESSAGE: &str = "You are a computer assistant. Reply tersely and robotically.";
 const MODEL: ChatGptModel = ChatGptModel::Gpt35Turbo;
 const TEMPERATURE: f32 = 0.5;
-const MAX_TOKENS: u32 = 100;
+const MAX_TOKENS: u32 = 200;
 
 impl Chatgpt {
 	pub async fn start_conversation(
