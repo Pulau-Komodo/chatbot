@@ -2,7 +2,7 @@ use std::fs;
 
 use chatgpt::Chatgpt;
 use discord_client::DiscordEventHandler;
-use serenity::prelude::GatewayIntents;
+use serenity::{prelude::GatewayIntents, http::Http};
 use sqlx::sqlite::SqlitePoolOptions;
 
 mod allowances;
@@ -13,7 +13,7 @@ mod util;
 
 #[tokio::main]
 async fn main() {
-	let token = fs::read_to_string("./token.txt").expect("Could not read token file");
+	let discord_token = fs::read_to_string("./token.txt").expect("Could not read token file");
 
 	let db_pool = SqlitePoolOptions::new()
 		.max_connections(4)
@@ -25,9 +25,11 @@ async fn main() {
 		fs::read_to_string("./gpt_api_key.txt").expect("Could not read GPT API key file");
 	let chatgpt = Chatgpt::new(chatgpt_api_key, None).unwrap();
 
-	let handler = DiscordEventHandler::new(db_pool, chatgpt);
+	let my_id = Http::new(&discord_token).get_current_user().await.unwrap().id;
+
+	let handler = DiscordEventHandler::new(db_pool, chatgpt, my_id);
 	let mut client = serenity::Client::builder(
-		&token,
+		&discord_token,
 		GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES,
 	)
 	.event_handler(handler)

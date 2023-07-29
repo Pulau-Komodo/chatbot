@@ -5,24 +5,30 @@ use sqlx::{Pool, Sqlite};
 use crate::{allowances, chatgpt::Chatgpt};
 
 /// If there is a mention on either end of the message, this returns that message with the mention removed, and trimmed.
-fn strip_mention(text: &str, user_id: UserId) -> Option<&str> {
-	let mention = format!("<@{}>", user_id.as_u64());
-	let mention_exclamation_mark = format!("<@!{}>", user_id.as_u64());
-	text.strip_prefix(&mention)
-		.or_else(|| text.strip_prefix(&mention_exclamation_mark))
-		.or_else(|| text.strip_suffix(&mention))
-		.or_else(|| text.strip_suffix(&mention_exclamation_mark))
+fn strip_mention<'l>(text: &'l str, mentions: &[String]) -> Option<&'l str> {
+	[str::strip_prefix, str::strip_suffix]
+		.into_iter()
+		.cartesian_product(mentions)
+		.find_map(|(strip, mention)| strip(text, mention))
 		.map(str::trim)
 }
 
 pub struct DiscordEventHandler {
 	database: Pool<Sqlite>,
 	chatgpt: Chatgpt,
+	mentions: [String; 2],
 }
 
 impl DiscordEventHandler {
-	pub fn new(database: Pool<Sqlite>, chatgpt: Chatgpt) -> Self {
-		Self { database, chatgpt }
+	pub fn new(database: Pool<Sqlite>, chatgpt: Chatgpt, own_user_id: UserId) -> Self {
+		let mention = format!("<@{}>", own_user_id.as_u64());
+		let mention_nick = format!("<@!{}>", own_user_id.as_u64());
+		let mentions = [mention, mention_nick];
+		Self {
+			database,
+			chatgpt,
+			mentions,
+		}
 	}
 }
 
@@ -34,7 +40,7 @@ impl EventHandler for DiscordEventHandler {
 			&& message.mentions_user_id(own_id)
 			&& !message.content.is_empty()
 		{
-			if let Some(text) = strip_mention(&message.content, own_id) {
+			if let Some(text) = strip_mention(&message.content, &self.mentions) {
 				let text = if !text.is_empty() {
 					// A normal message conventionally mentioning the bot.
 					String::from(text)
