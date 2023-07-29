@@ -2,7 +2,7 @@ use std::fs;
 
 use chatgpt::Chatgpt;
 use discord_client::DiscordEventHandler;
-use serenity::{prelude::GatewayIntents, http::Http};
+use serenity::{http::Http, prelude::GatewayIntents};
 use sqlx::sqlite::SqlitePoolOptions;
 
 mod allowances;
@@ -25,12 +25,16 @@ async fn main() {
 		fs::read_to_string("./gpt_api_key.txt").expect("Could not read GPT API key file");
 	let chatgpt = Chatgpt::new(chatgpt_api_key, None).unwrap();
 
-	let my_id = Http::new(&discord_token).get_current_user().await.unwrap().id;
+	let my_id = Http::new(&discord_token)
+		.get_current_user()
+		.await
+		.unwrap()
+		.id;
 
 	let handler = DiscordEventHandler::new(db_pool, chatgpt, my_id);
 	let mut client = serenity::Client::builder(
 		&discord_token,
-		GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES,
+		GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT,
 	)
 	.event_handler(handler)
 	.await

@@ -4,13 +4,31 @@ use sqlx::{Pool, Sqlite};
 
 use crate::{allowances, chatgpt::Chatgpt};
 
-/// If there is a mention on either end of the message, this returns that message with the mention removed, and trimmed.
-fn strip_mention<'l>(text: &'l str, mentions: &[String]) -> Option<&'l str> {
-	[str::strip_prefix, str::strip_suffix]
+/// If there is a mention on either end of the string, removes it and trims. Removes only one mention.
+fn strip_mention(text: String, mentions: &[String]) -> String {
+	let new_text = [str::strip_prefix, str::strip_suffix]
 		.into_iter()
 		.cartesian_product(mentions)
-		.find_map(|(strip, mention)| strip(text, mention))
-		.map(str::trim)
+		.find_map(|(strip, mention)| strip(&text, mention))
+		.map(str::trim);
+	new_text.map(String::from).unwrap_or(text)
+}
+
+async fn get_referenced_contents(
+	http: &std::sync::Arc<serenity::http::Http>,
+	mut referenced: Box<Message>,
+) -> Option<String> {
+	if !referenced.content.is_empty() {
+		return Some(std::mem::take(&mut referenced.content));
+	}
+	let Ok(mut referenced) = http.get_message(referenced.channel_id.0, referenced.id.0).await else {
+		return None;
+	};
+	if !referenced.content.is_empty() {
+		Some(std::mem::take(&mut referenced.content))
+	} else {
+		None
+	}
 }
 
 pub struct DiscordEventHandler {
@@ -30,6 +48,46 @@ impl DiscordEventHandler {
 			mentions,
 		}
 	}
+	/// The message looks like something to start or continue a conversation with.
+	async fn handle_conversation_message(&self, context: Context, mut message: Message) {
+		if let Some(referenced) = std::mem::take(&mut message.referenced_message) {
+			if referenced.author.id == context.cache.current_user_id() {
+				// A message replying to the bot's own message
+				self.chatgpt
+					.continue_conversation(&self.database, context, message, referenced.id)
+					.await;
+			} else if let Some(referenced_contents) =
+				get_referenced_contents(&context.http, referenced).await
+			{
+				let mut text = strip_mention(std::mem::take(&mut message.content), &self.mentions);
+				if text.is_empty() {
+					// A message replying to something, but containing nothing but a mention to the bot
+					self.chatgpt
+						.start_conversation(&self.database, context, referenced_contents, message)
+						.await;
+				} else {
+					// A message replying to something, and containing its own text as well
+					use std::fmt::Write;
+					write!(text, " \"{referenced_contents}\"").unwrap();
+					self.chatgpt
+						.start_conversation(&self.database, context, text, message)
+						.await;
+				}
+			} else {
+				// It has a referenced message, but the bot couldn't get it
+				println!(
+					"Could not get message referenced by message {}",
+					message.id.0
+				);
+			}
+		} else {
+			// A message not replying to anything, and pinging the bot
+			let text = strip_mention(std::mem::take(&mut message.content), &self.mentions);
+			self.chatgpt
+				.start_conversation(&self.database, context, text, message)
+				.await;
+		}
+	}
 }
 
 #[async_trait]
@@ -40,25 +98,7 @@ impl EventHandler for DiscordEventHandler {
 			&& message.mentions_user_id(own_id)
 			&& !message.content.is_empty()
 		{
-			if let Some(text) = strip_mention(&message.content, &self.mentions) {
-				let text = if !text.is_empty() {
-					// A normal message conventionally mentioning the bot.
-					String::from(text)
-				} else {
-					// A message that had only a mention.
-					return;
-				};
-				self.chatgpt
-					.start_conversation(&self.database, context, text, message)
-					.await;
-			} else if let Some(referenced) = message.referenced_message.as_ref() {
-				if referenced.author.id == own_id {
-					// A message with no mention, replying to the bot.
-					self.chatgpt
-						.continue_conversation(&self.database, context, message)
-						.await;
-				}
-			}
+			self.handle_conversation_message(context, message).await;
 		}
 	}
 

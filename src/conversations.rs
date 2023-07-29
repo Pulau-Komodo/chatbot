@@ -85,6 +85,7 @@ impl Chatgpt {
 		executor: &Pool<Sqlite>,
 		context: Context,
 		message: Message,
+		parent_id: MessageId,
 	) {
 		let allowance = check_allowance(executor, message.author.id).await;
 		if allowance <= 0 {
@@ -97,7 +98,6 @@ impl Chatgpt {
 			return;
 		}
 
-		let parent_id = message.referenced_message.as_ref().unwrap().id;
 		let mut history = get_history_from_database(executor, parent_id).await;
 		if history.len() == 1 {
 			// Found no actual history, so ignore this message.
