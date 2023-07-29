@@ -181,7 +181,8 @@ pub async fn command_expenditure(
 		.data
 		.options
 		.get(0)
-		.and_then(|option| option.value.as_ref().and_then(|value| value.as_bool()))
+		.and_then(|option| option.value.as_ref())
+		.and_then(|value| value.as_bool())
 		.unwrap_or(false);
 	let expenditure = get_expenditure(executor, (!all).then_some(interaction.user.id)).await;
 	let millidollars = nanodollars_to_millidollars(expenditure as i32);
