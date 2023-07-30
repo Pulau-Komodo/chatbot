@@ -1,5 +1,5 @@
 --
--- File generated with SQLiteStudio v3.4.4 on Tue Jul 25 23:12:33 2023
+-- File generated with SQLiteStudio v3.4.4 on Sun Jul 30 00:30:37 2023
 --
 -- Text encoding used: System
 --
@@ -13,7 +13,10 @@ CREATE TABLE IF NOT EXISTS allowances (user INTEGER PRIMARY KEY ON CONFLICT REPL
 CREATE TABLE IF NOT EXISTS conversations (message INTEGER PRIMARY KEY UNIQUE NOT NULL, parent INTEGER REFERENCES conversations (message) ON DELETE SET NULL, input TEXT NOT NULL, output TEXT NOT NULL, time DATETIME NOT NULL DEFAULT (datetime())) WITHOUT ROWID;
 
 -- Table: spending
-CREATE TABLE IF NOT EXISTS spending (user INTEGER NOT NULL, cost INTEGER NOT NULL, input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, time DATETIME DEFAULT (datetime()) NOT NULL);
+CREATE TABLE IF NOT EXISTS spending (user INTEGER NOT NULL, cost INTEGER NOT NULL, input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, model TEXT NOT NULL, time DATETIME DEFAULT (datetime()) NOT NULL);
+
+-- Table: user_settings
+CREATE TABLE IF NOT EXISTS user_settings (user INTEGER PRIMARY KEY UNIQUE NOT NULL, temperature REAL, max_tokens INTEGER, model TEXT);
 
 COMMIT TRANSACTION;
 PRAGMA foreign_keys = on;

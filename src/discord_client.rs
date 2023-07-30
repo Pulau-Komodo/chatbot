@@ -2,7 +2,7 @@ use itertools::Itertools;
 use serenity::{async_trait, model::prelude::*, prelude::*};
 use sqlx::{Pool, Sqlite};
 
-use crate::{allowances, chatgpt::Chatgpt};
+use crate::{allowances, chatgpt::Chatgpt, user_settings};
 
 /// If there is a mention on either end of the string, removes it and trims. Removes only one mention.
 fn strip_mention(text: String, mentions: &[String]) -> String {
@@ -50,27 +50,38 @@ impl DiscordEventHandler {
 	}
 	/// The message looks like something to start or continue a conversation with.
 	async fn handle_conversation_message(&self, context: Context, mut message: Message) {
+		let content = std::mem::take(&mut message.content);
 		if let Some(referenced) = std::mem::take(&mut message.referenced_message) {
 			if referenced.author.id == context.cache.current_user_id() {
 				// A message replying to the bot's own message
 				self.chatgpt
-					.continue_conversation(&self.database, context, message, referenced.id)
+					.query(
+						&self.database,
+						context,
+						content,
+						message,
+						Some(referenced.id),
+					)
 					.await;
 			} else if let Some(referenced_contents) =
 				get_referenced_contents(&context.http, referenced).await
 			{
-				let mut text = strip_mention(std::mem::take(&mut message.content), &self.mentions);
+				let mut text = strip_mention(content, &self.mentions);
 				if text.is_empty() {
 					// A message replying to something, but containing nothing but a mention to the bot
+					let referenced_contents = strip_mention(referenced_contents, &self.mentions); // Stripping mentions so replies can be used to repeat queries, possibly with different settings
+					if referenced_contents.is_empty() {
+						return; // Referenced message had only a mention, makes no sense, ignore
+					}
 					self.chatgpt
-						.start_conversation(&self.database, context, referenced_contents, message)
+						.query(&self.database, context, referenced_contents, message, None)
 						.await;
 				} else {
 					// A message replying to something, and containing its own text as well
 					use std::fmt::Write;
 					write!(text, " \"{referenced_contents}\"").unwrap();
 					self.chatgpt
-						.start_conversation(&self.database, context, text, message)
+						.query(&self.database, context, text, message, None)
 						.await;
 				}
 			} else {
@@ -82,9 +93,9 @@ impl DiscordEventHandler {
 			}
 		} else {
 			// A message not replying to anything, and pinging the bot
-			let text = strip_mention(std::mem::take(&mut message.content), &self.mentions);
+			let text = strip_mention(content, &self.mentions);
 			self.chatgpt
-				.start_conversation(&self.database, context, text, message)
+				.query(&self.database, context, text, message, None)
 				.await;
 		}
 	}
@@ -115,6 +126,9 @@ impl EventHandler for DiscordEventHandler {
 						.await
 						.unwrap();
 				}
+				"gpt4" => user_settings::command_set_gpt4(context, interaction, &self.database)
+					.await
+					.unwrap(),
 				_ => (),
 			};
 		}
@@ -132,6 +146,9 @@ impl EventHandler for DiscordEventHandler {
 								.create_application_command(|command| allowances::register(command))
 								.create_application_command(|command| {
 									allowances::register_check_expenditure(command)
+								})
+								.create_application_command(|command| {
+									user_settings::register_set_gpt4(command)
 								})
 						})
 						.await

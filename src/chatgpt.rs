@@ -90,7 +90,7 @@ pub enum ChatGptModel {
 	/// Different version of standard engine: `gpt-3.5-turbo-0301`
 	_Gpt35Turbo_0301,
 	/// Base GPT-4 model: `gpt-4`
-	_Gpt4,
+	Gpt4,
 	/// Version of GPT-4, able to remember 32,000 tokens: `gpt-4-32k`
 	_Gpt4_32k,
 	/// Different version of GPT-4: `gpt-4-0314`
@@ -101,6 +101,23 @@ pub enum ChatGptModel {
 	_Custom(&'static str),
 }
 
+impl TryInto<ChatGptModel> for String {
+	type Error = ();
+
+	fn try_into(self) -> Result<ChatGptModel, Self::Error> {
+		let model = match self.as_str() {
+			"gpt-3.5-turbo" => ChatGptModel::Gpt35Turbo,
+			"gpt-3.5-turbo-030" => ChatGptModel::_Gpt35Turbo_0301,
+			"gpt-4" => ChatGptModel::Gpt4,
+			"gpt-4-32k" => ChatGptModel::_Gpt4_32k,
+			"gpt-4-0314" => ChatGptModel::_Gpt4_0314,
+			"gpt-4-32k-0314" => ChatGptModel::_Gpt4_32k_0314,
+			_ => return Err(()),
+		};
+		Ok(model)
+	}
+}
+
 impl Display for ChatGptModel {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str(self.as_str())
@@ -108,14 +125,25 @@ impl Display for ChatGptModel {
 }
 
 impl ChatGptModel {
-	fn as_str(&self) -> &'static str {
+	pub fn as_str(&self) -> &'static str {
 		match self {
 			Self::Gpt35Turbo => "gpt-3.5-turbo",
 			Self::_Gpt35Turbo_0301 => "gpt-3.5-turbo-0301",
-			Self::_Gpt4 => "gpt-4",
+			Self::Gpt4 => "gpt-4",
 			Self::_Gpt4_32k => "gpt-4-32k",
 			Self::_Gpt4_0314 => "gpt-4-0314",
 			Self::_Gpt4_32k_0314 => "gpt-4-32k-0314",
+			Self::_Custom(custom) => custom,
+		}
+	}
+	pub fn as_friendly_str(&self) -> &'static str {
+		match self {
+			Self::Gpt35Turbo => "GPT-3.5 Turbo",
+			Self::_Gpt35Turbo_0301 => "GPT-3.5 Turbo 0301",
+			Self::Gpt4 => "GPT-4",
+			Self::_Gpt4_32k => "GPT-4 32k context",
+			Self::_Gpt4_0314 => "GPT-4 0314",
+			Self::_Gpt4_32k_0314 => "GPT-4 32k context 0314",
 			Self::_Custom(custom) => custom,
 		}
 	}

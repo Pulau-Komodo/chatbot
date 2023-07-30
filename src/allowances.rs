@@ -9,16 +9,13 @@ use serenity::{
 };
 use sqlx::{query, Pool, Sqlite};
 
+use crate::chatgpt::ChatGptModel;
 use crate::util::interaction_reply;
 
 /// The allowance a user gets over time each day, in nanodollars.
 const DAILY_ALLOWANCE: u32 = 5_000_000;
 /// The allowance a user can save up before it stops accruing, in nanodollars.
 const MAX_ALLOWANCE: u32 = DAILY_ALLOWANCE * 2;
-/// The cost per token of input, in nanodollars.
-const INPUT_COST: u32 = 1_500;
-/// The cost per token of output, in nanodollars.
-const OUTPUT_COST: u32 = 2_000;
 
 const MILLISECONDS_PER_DAY: f32 = 1000.0 * 60.0 * 60.0 * 24.0;
 
@@ -57,14 +54,25 @@ pub async fn check_allowance(executor: &Pool<Sqlite>, user: UserId) -> i32 {
 	}
 }
 
-/// Takes the specified number of tokens' worth from the user's allowance, then returns the new allowance.
+/// Get the cost of a query in nanodollars.
+pub fn get_cost(input_tokens: u32, output_tokens: u32, model: ChatGptModel) -> u32 {
+	match model {
+		ChatGptModel::Gpt35Turbo => 1_500 * input_tokens + 2_000 * output_tokens,
+		ChatGptModel::Gpt4 => 30_000 * input_tokens + 30_000 * output_tokens,
+		_ => unimplemented!("Other models are not suppported"),
+	}
+}
+
+/// Takes the specified number of tokens' worth from the user's allowance, then returns the new allowance and what the cost ended up being.
 pub async fn spend_allowance(
 	executor: &Pool<Sqlite>,
 	user: UserId,
 	input_tokens: u32,
 	output_tokens: u32,
-) -> i32 {
-	let cost = input_tokens * INPUT_COST + output_tokens * OUTPUT_COST;
+	model: ChatGptModel,
+) -> (i32, i32) {
+	let cost = get_cost(input_tokens, output_tokens, model);
+
 	let added_milliseconds = cost as u64 * 1000 * 60 * 60 * 24 / DAILY_ALLOWANCE as u64;
 	let time = time_to_full(executor, user).await.unwrap_or_else(Utc::now);
 	let new_time = time.add(Duration::milliseconds(added_milliseconds as i64));
@@ -84,23 +92,25 @@ pub async fn spend_allowance(
 	.await
 	.unwrap();
 
+	let model = model.as_str();
 	query!(
 		"
 		INSERT INTO
-			spending (user, cost, input_tokens, output_tokens)
+			spending (user, cost, input_tokens, output_tokens, model)
 		VALUES
-			(?, ?, ?, ?)
+			(?, ?, ?, ?, ?)
 		",
 		user_id,
 		cost,
 		input_tokens,
 		output_tokens,
+		model,
 	)
 	.execute(executor)
 	.await
 	.unwrap();
 
-	allowance_from_time_to_full(new_time)
+	(allowance_from_time_to_full(new_time), cost as i32)
 }
 
 const PRECISION_MULTIPLIER: f32 = 100.0;

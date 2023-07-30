@@ -9,6 +9,7 @@ mod allowances;
 mod chatgpt;
 mod conversations;
 mod discord_client;
+mod user_settings;
 mod util;
 
 #[tokio::main]
