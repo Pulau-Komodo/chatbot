@@ -38,11 +38,15 @@ impl Chatgpt {
 		}
 
 		let history = if let Some(parent_id) = parent_id {
-			let history = get_history_from_database(executor, parent_id).await;
+			let mut history = get_history_from_database(executor, parent_id).await;
 			if history.len() == 1 {
 				// Found no actual history, so ignore this message. This most typically happens when replying to a bot message that was not a GPT response, like an error message.
 				return;
 			}
+			history.push(ChatMessage {
+				role: Role::User,
+				content: input.clone(),
+			});
 			history
 		} else {
 			[
@@ -92,14 +96,7 @@ impl Chatgpt {
 		let own_message = message.reply(context.http, full_reply).await.unwrap();
 
 		if let Some(parent_id) = parent_id {
-			store_child_message(
-				executor,
-				own_message.id,
-				parent_id,
-				&message.content,
-				&output,
-			)
-			.await;
+			store_child_message(executor, own_message.id, parent_id, &input, &output).await;
 		} else {
 			store_root_message(executor, own_message.id, &input, &output).await;
 		}
