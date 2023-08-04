@@ -102,6 +102,20 @@ impl Chatgpt {
 		if !matches!(model, ChatGptModel::Gpt35Turbo) {
 			write!(full_reply, " ({})", model.as_friendly_str()).unwrap(); // Add non-standard model to the message
 		}
+		let ending = match response.message_choices[0].finish_reason.as_str() {
+			// It was done.
+			"stop" => "",
+			// It got cut off by the token limit.
+			"length" => "…",
+			// Omitted content due to content filters.
+			"content_filter" => " \\🙊",
+			// "function call" should only happen if the AI decides to call a function, "null" means "API response still in progress or incomplete", and other options are not listed.
+			reason => {
+				eprintln!("GPT API somehow returned finish reason \"{reason}\".");
+				"⁇"
+			}
+		};
+		full_reply.push_str(ending);
 		let own_message = message.reply(context.http, full_reply).await.unwrap();
 
 		let system_message = system_message_was_set.then_some(system_message);
