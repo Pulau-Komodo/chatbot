@@ -93,7 +93,12 @@ impl DiscordEventHandler {
 			}
 		} else {
 			// A message not replying to anything, and pinging the bot
+			let old_len = content.len();
 			let text = strip_mention(content, &self.mentions);
+			if old_len == text.len() {
+				// Pinged the bot but had no mention at either end, so don't take it as being addressed.
+				return;
+			}
 			self.chatgpt
 				.query(&self.database, context, text, message, None)
 				.await;
