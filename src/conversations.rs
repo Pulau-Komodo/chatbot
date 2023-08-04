@@ -8,10 +8,10 @@ use std::fmt::Write;
 use crate::{
 	allowances::{check_allowance, nanodollars_to_millidollars, spend_allowance, MAX_MILLIDOLLARS},
 	chatgpt::{ChatGptModel, ChatMessage, Chatgpt, Role},
-	user_settings::consume_model_setting,
+	response_styles::SystemMessage,
+	user_settings::{consume_model_setting, get_system_message},
 };
 
-const SYSTEM_MESSAGE: &str = "You are a computer assistant. Reply tersely and robotically.";
 const MODEL: ChatGptModel = ChatGptModel::Gpt35Turbo;
 const TEMPERATURE: f32 = 0.5;
 const MAX_TOKENS: u32 = 200;
@@ -37,8 +37,12 @@ impl Chatgpt {
 			return;
 		}
 
-		let history = if let Some(parent_id) = parent_id {
-			let mut history = get_history_from_database(executor, parent_id).await;
+		let (history, system_message, system_message_was_set) = if let Some(parent_id) = parent_id {
+			let system_message = get_message_system_message(executor, parent_id).await;
+			let system_message_was_set = system_message.is_some();
+			let system_message = system_message.unwrap_or_default();
+			let mut history =
+				get_history_from_database(executor, parent_id, system_message.text()).await;
 			if history.len() == 1 {
 				// Found no actual history, so ignore this message. This most typically happens when replying to a bot message that was not a GPT response, like an error message.
 				return;
@@ -47,19 +51,23 @@ impl Chatgpt {
 				role: Role::User,
 				content: input.clone(),
 			});
-			history
+			(history, system_message, system_message_was_set)
 		} else {
-			[
+			let system_message = get_system_message(executor, message.author.id).await;
+			let system_message_was_set = system_message.is_some();
+			let system_message = system_message.unwrap_or_default();
+			let history = [
 				ChatMessage {
 					role: Role::System,
-					content: String::from(SYSTEM_MESSAGE),
+					content: system_message.text(),
 				},
 				ChatMessage {
 					role: Role::User,
 					content: input.clone(),
 				},
 			]
-			.to_vec()
+			.to_vec();
+			(history, system_message, system_message_was_set)
 		};
 
 		let model = consume_model_setting(executor, message.author.id)
@@ -85,7 +93,8 @@ impl Chatgpt {
 
 		let output = std::mem::take(&mut response.message_choices[0].message.content);
 		let mut full_reply = format!(
-			"{} (-{} m$, {} m$)",
+			"{} {} (-{} m$, {} m$)",
+			system_message.emoji(),
 			output,
 			nanodollars_to_millidollars(cost),
 			nanodollars_to_millidollars(allowance),
@@ -95,15 +104,28 @@ impl Chatgpt {
 		}
 		let own_message = message.reply(context.http, full_reply).await.unwrap();
 
+		let system_message = system_message_was_set.then_some(system_message);
 		if let Some(parent_id) = parent_id {
-			store_child_message(executor, own_message.id, parent_id, &input, &output).await;
+			store_child_message(
+				executor,
+				own_message.id,
+				parent_id,
+				&input,
+				&output,
+				system_message,
+			)
+			.await;
 		} else {
-			store_root_message(executor, own_message.id, &input, &output).await;
+			store_root_message(executor, own_message.id, &input, &output, system_message).await;
 		}
 	}
 }
 
-async fn get_history_from_database(executor: &Pool<Sqlite>, parent: MessageId) -> Vec<ChatMessage> {
+async fn get_history_from_database(
+	executor: &Pool<Sqlite>,
+	parent: MessageId,
+	system_message: String,
+) -> Vec<ChatMessage> {
 	let message_id = *parent.as_u64() as i64;
 	let stored_history = query!(
 		"
@@ -138,7 +160,7 @@ async fn get_history_from_database(executor: &Pool<Sqlite>, parent: MessageId) -
 	.unwrap();
 	std::iter::once(ChatMessage {
 		role: Role::System,
-		content: String::from(SYSTEM_MESSAGE),
+		content: system_message,
 	})
 	.chain(stored_history.into_iter().rev().flat_map(|record| {
 		[
@@ -155,23 +177,49 @@ async fn get_history_from_database(executor: &Pool<Sqlite>, parent: MessageId) -
 	.collect()
 }
 
+async fn get_message_system_message(
+	executor: &Pool<Sqlite>,
+	parent: MessageId,
+) -> Option<SystemMessage> {
+	let message_id = parent.0 as i64;
+	query!(
+		"
+		SELECT
+			system_message
+		FROM
+			conversations
+		WHERE
+			message = ?
+		",
+		message_id
+	)
+	.fetch_optional(executor)
+	.await
+	.unwrap()
+	.and_then(|record| record.system_message)
+	.map(|message| SystemMessage::from_database_str(&message))
+}
+
 async fn store_root_message(
 	executor: &Pool<Sqlite>,
 	message: MessageId,
 	input: &str,
 	output: &str,
+	system_message: Option<SystemMessage>,
 ) {
 	let message_id = message.0 as i64;
+	let system_message = system_message.map(|message| message.to_database_string());
 	query!(
 		"
 		INSERT INTO
-			conversations (message, input, output)
+			conversations (message, input, output, system_message)
 		VALUES
-			(?, ?, ?)
+			(?, ?, ?, ?)
 		",
 		message_id,
 		input,
-		output
+		output,
+		system_message,
 	)
 	.execute(executor)
 	.await
@@ -184,20 +232,23 @@ async fn store_child_message(
 	parent: MessageId,
 	input: &str,
 	output: &str,
+	system_message: Option<SystemMessage>,
 ) {
 	let message_id = message.0 as i64;
 	let parent_id = parent.0 as i64;
+	let system_message = system_message.map(|message| message.to_database_string());
 	query!(
 		"
 		INSERT INTO
-			conversations (message, parent, input, output)
+			conversations (message, parent, input, output, system_message)
 		VALUES
-			(?, ?, ?, ?)
+			(?, ?, ?, ?, ?)
 		",
 		message_id,
 		parent_id,
 		input,
-		output
+		output,
+		system_message,
 	)
 	.execute(executor)
 	.await

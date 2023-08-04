@@ -129,6 +129,11 @@ impl EventHandler for DiscordEventHandler {
 				"gpt4" => user_settings::command_set_gpt4(context, interaction, &self.database)
 					.await
 					.unwrap(),
+				"system_message" => {
+					user_settings::command_set_system_message(context, interaction, &self.database)
+						.await
+						.unwrap()
+				}
 				_ => (),
 			};
 		}
@@ -149,6 +154,9 @@ impl EventHandler for DiscordEventHandler {
 								})
 								.create_application_command(|command| {
 									user_settings::register_set_gpt4(command)
+								})
+								.create_application_command(|command| {
+									user_settings::register_set_system_message(command)
 								})
 						})
 						.await
