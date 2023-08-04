@@ -71,6 +71,7 @@ impl Chatgpt {
 				let text = match error.error_type.as_str() {
 					"insufficient_quota" => "Boop bloop, out of credit.",
 					"server_error" => "Boop bloop, server error.",
+					"requests" => "Beep bloop, probably rate-limited.",
 					_ => "Boop bloop, unknown error",
 				};
 				Err(String::from(text))
