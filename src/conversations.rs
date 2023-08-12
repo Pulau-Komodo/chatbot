@@ -92,16 +92,6 @@ impl Chatgpt {
 		.await;
 
 		let output = std::mem::take(&mut response.message_choices[0].message.content);
-		let mut full_reply = format!(
-			"{} {} (-{} m$, {} m$)",
-			system_message.emoji(),
-			output,
-			nanodollars_to_millidollars(cost),
-			nanodollars_to_millidollars(allowance),
-		);
-		if !matches!(model, ChatGptModel::Gpt35Turbo) {
-			write!(full_reply, " ({})", model.as_friendly_str()).unwrap(); // Add non-standard model to the message
-		}
 		let ending = match response.message_choices[0].finish_reason.as_str() {
 			// It was done.
 			"stop" => "",
@@ -115,7 +105,17 @@ impl Chatgpt {
 				"⁇"
 			}
 		};
-		full_reply.push_str(ending);
+		let mut full_reply = format!(
+			"{} {}{} (-{} m$, {} m$)",
+			system_message.emoji(),
+			ending,
+			output,
+			nanodollars_to_millidollars(cost),
+			nanodollars_to_millidollars(allowance),
+		);
+		if !matches!(model, ChatGptModel::Gpt35Turbo) {
+			write!(full_reply, " ({})", model.as_friendly_str()).unwrap(); // Add non-standard model to the message
+		}
 		let own_message = message.reply(context.http, full_reply).await.unwrap();
 
 		let system_message = system_message_was_set.then_some(system_message);
