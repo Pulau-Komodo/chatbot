@@ -108,8 +108,8 @@ impl Chatgpt {
 		let mut full_reply = format!(
 			"{} {}{} (-{} m$, {} m$)",
 			system_message.emoji(),
-			ending,
 			output,
+			ending,
 			nanodollars_to_millidollars(cost),
 			nanodollars_to_millidollars(allowance),
 		);
