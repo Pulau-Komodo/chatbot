@@ -61,10 +61,16 @@ impl Chatgpt {
 			})
 			.send()
 			.await
-			.unwrap()
+			.map_err(|error| {
+				println!("{error}");
+				String::from("Boop beep, problem sending request.")
+			})?
 			.json()
 			.await
-			.unwrap();
+			.map_err(|error| {
+				println!("{error}");
+				String::from("Boop beep, problem derialising response.")
+			})?;
 		match response {
 			ServerResponse::Error { error } => {
 				eprintln!("Backend error: {}, {}", error.message, error.error_type);
