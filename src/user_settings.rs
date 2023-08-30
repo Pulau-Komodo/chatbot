@@ -135,16 +135,17 @@ async fn set_system_message(
 
 pub async fn command_set_system_message(
 	context: Context,
-	mut interaction: ApplicationCommandInteraction,
+	interaction: ApplicationCommandInteraction,
 	executor: &Pool<Sqlite>,
 ) -> Result<(), ()> {
 	let current_system_message = get_system_message(executor, interaction.user.id).await;
 	let new_system_message = interaction
 		.data
 		.options
-		.pop()
-		.and_then(|option| option.value)
-		.and_then(|value| value.as_str().map(SystemMessage::from_database_str));
+		.first()
+		.and_then(|option| option.value.as_ref())
+		.and_then(|value| value.as_str())
+		.map(SystemMessage::from_database_str);
 
 	if current_system_message == new_system_message {
 		let _ = interaction_reply(
