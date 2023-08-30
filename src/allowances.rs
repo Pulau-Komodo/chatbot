@@ -13,7 +13,7 @@ use crate::chatgpt::ChatGptModel;
 use crate::util::interaction_reply;
 
 /// The allowance a user gets over time each day, in nanodollars.
-const DAILY_ALLOWANCE: u32 = 5_000_000;
+const DAILY_ALLOWANCE: u32 = 20_000_000;
 /// The allowance a user can save up before it stops accruing, in nanodollars.
 const MAX_ALLOWANCE: u32 = DAILY_ALLOWANCE * 2;
 

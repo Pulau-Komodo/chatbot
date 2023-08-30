@@ -14,7 +14,7 @@ use crate::{
 
 const MODEL: ChatGptModel = ChatGptModel::Gpt35Turbo;
 const TEMPERATURE: f32 = 0.5;
-const MAX_TOKENS: u32 = 200;
+const MAX_TOKENS: u32 = 400;
 
 impl Chatgpt {
 	/// Start or continue a conversation, based on the presence of `parent_id`.
