@@ -6,6 +6,7 @@ pub enum SystemMessage {
 	Robotic,
 	Friendly,
 	Poetic,
+	Villainous,
 	Custom(String),
 }
 
@@ -16,6 +17,7 @@ impl SystemMessage {
 			"robotic" => Self::Robotic,
 			"friendly" => Self::Friendly,
 			"poetic" => Self::Poetic,
+			"villainous" => Self::Villainous,
 			_ => {
 				let custom = str
 					.strip_prefix("custom: ")
@@ -30,6 +32,7 @@ impl SystemMessage {
 			Self::Robotic => Cow::from("robotic"),
 			Self::Friendly => Cow::from("friendly"),
 			Self::Poetic => Cow::from("poetic"),
+			Self::Villainous => Cow::from("villainous"),
 			Self::Custom(text) => Cow::from(format!("custom: {text}")),
 		}
 	}
@@ -39,6 +42,7 @@ impl SystemMessage {
 			Self::Robotic => String::from("You are a computer assistant. Reply tersely and robotically."),
 			Self::Friendly => String::from("Reply briefly, but in a friendly way."),
 			Self::Poetic => String::from("Deliver your answers as short poems. When that is not possible, at least try to insert a lot of rhyme."),
+			Self::Villainous => String::from("Answer helpfully, but in a terse, condescending villain speech."),
 			Self::Custom(text) => text.clone(),
 		}
 	}
@@ -48,6 +52,7 @@ impl SystemMessage {
 			Self::Robotic => "🖥️",
 			Self::Friendly => "🙂",
 			Self::Poetic => "🧑‍🎨",
+			Self::Villainous => "🦹‍♂️",
 			Self::Custom(_) => "💬",
 		}
 	}
@@ -57,6 +62,7 @@ impl SystemMessage {
 			Self::Robotic => "robotic",
 			Self::Friendly => "friendly",
 			Self::Poetic => "poetic",
+			Self::Villainous => "villainous",
 			Self::Custom(_) => "a custom message",
 		}
 	}

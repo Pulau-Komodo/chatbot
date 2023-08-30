@@ -182,6 +182,7 @@ pub fn register_set_system_message(
 				.add_string_choice("robotic", "robotic")
 				.add_string_choice("friendly", "friendly")
 				.add_string_choice("poetic", "poetic")
+				.add_string_choice("villainous", "villainous")
 				.kind(CommandOptionType::String)
 				.required(false)
 		})
