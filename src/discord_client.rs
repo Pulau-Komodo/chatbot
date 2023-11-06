@@ -21,7 +21,10 @@ async fn get_referenced_contents(
 	if !referenced.content.is_empty() {
 		return Some(std::mem::take(&mut referenced.content));
 	}
-	let Ok(mut referenced) = http.get_message(referenced.channel_id.0, referenced.id.0).await else {
+	let Ok(mut referenced) = http
+		.get_message(referenced.channel_id.0, referenced.id.0)
+		.await
+	else {
 		return None;
 	};
 	if !referenced.content.is_empty() {
@@ -134,7 +137,7 @@ impl EventHandler for DiscordEventHandler {
 				"gpt4" => user_settings::command_set_gpt4(context, interaction, &self.database)
 					.await
 					.unwrap(),
-				"system_message" => {
+				"personality" => {
 					user_settings::command_set_system_message(context, interaction, &self.database)
 						.await
 						.unwrap()

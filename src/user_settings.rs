@@ -171,19 +171,17 @@ pub fn register_set_system_message(
 	command: &mut CreateApplicationCommand,
 ) -> &mut CreateApplicationCommand {
 	command
-		.name("system_message")
-		.description(
-			"Sets (or unsets) the message accompanying your new conversations to set the tone.",
-		)
+		.name("personality")
+		.description("Sets (or unsets) the personality for new conversations started by you.")
 		.create_option(|option| {
 			option
-				.name("message")
-				.description("The preset your new conversations will use. Leave blank to unset and use default.")
+				.name("personality")
+				.description("The personality your new conversations will use.")
 				.add_string_choice("robotic", "robotic")
 				.add_string_choice("friendly", "friendly")
 				.add_string_choice("poetic", "poetic")
 				.add_string_choice("villainous", "villainous")
 				.kind(CommandOptionType::String)
-				.required(false)
+				.required(true)
 		})
 }
