@@ -1,12 +1,9 @@
 use std::ops::Add;
 
 use chrono::{DateTime, Duration, Utc};
-use serenity::builder::CreateApplicationCommand;
-use serenity::model::prelude::command::CommandOptionType;
-use serenity::{
-	model::prelude::{application_command::ApplicationCommandInteraction, UserId},
-	prelude::Context,
-};
+use serenity::all::{CommandInteraction, CommandOptionType};
+use serenity::builder::{CreateCommand, CreateCommandOption};
+use serenity::{model::prelude::UserId, prelude::Context};
 use sqlx::{query, Pool, Sqlite};
 
 use crate::chatgpt::ChatGptModel;
@@ -20,7 +17,7 @@ const MAX_ALLOWANCE: u32 = DAILY_ALLOWANCE * 2;
 const MILLISECONDS_PER_DAY: f32 = 1000.0 * 60.0 * 60.0 * 24.0;
 
 async fn time_to_full(executor: &Pool<Sqlite>, user: UserId) -> Option<DateTime<Utc>> {
-	let user_id = *user.as_u64() as i64;
+	let user_id = user.get() as i64;
 	let result = query!(
 		"
 		SELECT
@@ -35,7 +32,8 @@ async fn time_to_full(executor: &Pool<Sqlite>, user: UserId) -> Option<DateTime<
 	.fetch_optional(executor)
 	.await
 	.unwrap();
-	result.map(|record| DateTime::from_utc(record.time_to_full, Utc).max(Utc::now()))
+	result
+		.map(|record| DateTime::from_naive_utc_and_offset(record.time_to_full, Utc).max(Utc::now()))
 }
 
 fn allowance_from_time_to_full(time_to_full: DateTime<Utc>) -> i32 {
@@ -76,7 +74,7 @@ pub async fn spend_allowance(
 	let added_milliseconds = cost as u64 * 1000 * 60 * 60 * 24 / DAILY_ALLOWANCE as u64;
 	let time = time_to_full(executor, user).await.unwrap_or_else(Utc::now);
 	let new_time = time.add(Duration::milliseconds(added_milliseconds as i64));
-	let user_id = *user.as_u64() as i64;
+	let user_id = user.get() as i64;
 
 	query!(
 		"
@@ -126,7 +124,7 @@ pub fn nanodollars_to_millidollars(allowance: i32) -> f32 {
 
 pub async fn command_check(
 	context: Context,
-	interaction: ApplicationCommandInteraction,
+	interaction: CommandInteraction,
 	executor: &Pool<Sqlite>,
 ) -> Result<(), ()> {
 	let allowance = check_allowance(executor, interaction.user.id).await;
@@ -140,15 +138,13 @@ pub async fn command_check(
 		.unwrap();
 	Ok(())
 }
-pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
-	command
-		.name("allowance")
-		.description("Check your current allowance for using ChatGPT")
+pub fn register() -> CreateCommand {
+	CreateCommand::new("allowance").description("Check your current allowance for using ChatGPT.")
 }
 
 async fn get_expenditure(executor: &Pool<Sqlite>, user: Option<UserId>) -> u32 {
 	if let Some(user) = user {
-		let user_id = *user.as_u64() as i64;
+		let user_id = user.get() as i64;
 		query!(
 			"
 		SELECT
@@ -184,15 +180,14 @@ async fn get_expenditure(executor: &Pool<Sqlite>, user: Option<UserId>) -> u32 {
 
 pub async fn command_expenditure(
 	context: Context,
-	interaction: ApplicationCommandInteraction,
+	interaction: CommandInteraction,
 	executor: &Pool<Sqlite>,
 ) -> Result<(), ()> {
 	let all = interaction
 		.data
 		.options
 		.get(0)
-		.and_then(|option| option.value.as_ref())
-		.and_then(|value| value.as_bool())
+		.and_then(|option| option.value.as_bool())
 		.unwrap_or(false);
 	let expenditure = get_expenditure(executor, (!all).then_some(interaction.user.id)).await;
 	let millidollars = nanodollars_to_millidollars(expenditure as i32);
@@ -206,19 +201,17 @@ pub async fn command_expenditure(
 		.unwrap();
 	Ok(())
 }
-pub fn register_check_expenditure(
-	command: &mut CreateApplicationCommand,
-) -> &mut CreateApplicationCommand {
-	command
-		.name("spent")
+pub fn register_check_expenditure() -> CreateCommand {
+	CreateCommand::new("spent")
 		.description(
 			"Check how many millidollars you have or everyone has used on ChatGPT prompts.",
 		)
-		.create_option(|option| {
-			option
-				.name("all")
-				.description("Get total spending from everyone")
-				.kind(CommandOptionType::Boolean)
-				.required(false)
-		})
+		.add_option(
+			CreateCommandOption::new(
+				CommandOptionType::Boolean,
+				"all",
+				"Get total spending from everyone",
+			)
+			.required(false),
+		)
 }

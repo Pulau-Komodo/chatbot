@@ -21,10 +21,7 @@ async fn get_referenced_contents(
 	if !referenced.content.is_empty() {
 		return Some(std::mem::take(&mut referenced.content));
 	}
-	let Ok(mut referenced) = http
-		.get_message(referenced.channel_id.0, referenced.id.0)
-		.await
-	else {
+	let Ok(mut referenced) = http.get_message(referenced.channel_id, referenced.id).await else {
 		return None;
 	};
 	if !referenced.content.is_empty() {
@@ -42,8 +39,8 @@ pub struct DiscordEventHandler {
 
 impl DiscordEventHandler {
 	pub fn new(database: Pool<Sqlite>, chatgpt: Chatgpt, own_user_id: UserId) -> Self {
-		let mention = format!("<@{}>", own_user_id.as_u64());
-		let mention_nick = format!("<@!{}>", own_user_id.as_u64());
+		let mention = format!("<@{}>", own_user_id.get());
+		let mention_nick = format!("<@!{}>", own_user_id.get());
 		let mentions = [mention, mention_nick];
 		Self {
 			database,
@@ -55,7 +52,7 @@ impl DiscordEventHandler {
 	async fn handle_conversation_message(&self, context: Context, mut message: Message) {
 		let content = std::mem::take(&mut message.content);
 		if let Some(referenced) = std::mem::take(&mut message.referenced_message) {
-			if referenced.author.id == context.cache.current_user_id() {
+			if referenced.author.id == context.cache.current_user().id {
 				// A message replying to the bot's own message
 				self.chatgpt
 					.query(
@@ -91,7 +88,7 @@ impl DiscordEventHandler {
 				// It has a referenced message, but the bot couldn't get it
 				println!(
 					"Could not get message referenced by message {}",
-					message.id.0
+					message.id.get()
 				);
 			}
 		} else {
@@ -112,7 +109,7 @@ impl DiscordEventHandler {
 #[async_trait]
 impl EventHandler for DiscordEventHandler {
 	async fn message(&self, context: Context, message: Message) {
-		let own_id = context.cache.current_user_id();
+		let own_id = context.cache.current_user().id;
 		if !message.is_own(&context.cache)
 			&& message.mentions_user_id(own_id)
 			&& !message.content.is_empty()
@@ -122,7 +119,7 @@ impl EventHandler for DiscordEventHandler {
 	}
 
 	async fn interaction_create(&self, context: Context, interaction: Interaction) {
-		if let Interaction::ApplicationCommand(interaction) = interaction {
+		if let Interaction::Command(interaction) = interaction {
 			match interaction.data.name.as_str() {
 				"allowance" => {
 					allowances::command_check(context, interaction, &self.database)
@@ -153,27 +150,17 @@ impl EventHandler for DiscordEventHandler {
 		if let Some(arg) = arg {
 			if &arg == "register" {
 				for guild in context.cache.guilds() {
-					let commands = guild
-						.set_application_commands(&context.http, |commands| {
-							commands
-								.create_application_command(|command| allowances::register(command))
-								.create_application_command(|command| {
-									allowances::register_check_expenditure(command)
-								})
-								.create_application_command(|command| {
-									user_settings::register_set_gpt4(command)
-								})
-								.create_application_command(|command| {
-									user_settings::register_set_system_message(command)
-								})
-						})
-						.await
-						.unwrap();
-
+					let commands = vec![
+						allowances::register(),
+						allowances::register_check_expenditure(),
+						user_settings::register_set_gpt4(),
+						user_settings::register_set_system_message(),
+					];
+					let commands = guild.set_commands(&context.http, commands).await.unwrap();
 					let command_names = commands.into_iter().map(|command| command.name).join(", ");
 					println!(
 						"I now have the following guild slash commands in guild {}: {}",
-						guild.as_u64(),
+						guild.get(),
 						command_names
 					);
 				}

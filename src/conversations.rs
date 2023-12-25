@@ -140,7 +140,7 @@ async fn get_history_from_database(
 	parent: MessageId,
 	system_message: String,
 ) -> Vec<ChatMessage> {
-	let message_id = *parent.as_u64() as i64;
+	let message_id = parent.get() as i64;
 	let stored_history = query!(
 		"
 		WITH RECURSIVE chain (
@@ -195,7 +195,7 @@ async fn get_message_system_message(
 	executor: &Pool<Sqlite>,
 	parent: MessageId,
 ) -> Option<SystemMessage> {
-	let message_id = parent.0 as i64;
+	let message_id = parent.get() as i64;
 	query!(
 		"
 		SELECT
@@ -221,7 +221,7 @@ async fn store_root_message(
 	output: &str,
 	system_message: Option<SystemMessage>,
 ) {
-	let message_id = message.0 as i64;
+	let message_id = message.get() as i64;
 	let system_message = system_message.map(|message| message.to_database_string());
 	query!(
 		"
@@ -248,8 +248,8 @@ async fn store_child_message(
 	output: &str,
 	system_message: Option<SystemMessage>,
 ) {
-	let message_id = message.0 as i64;
-	let parent_id = parent.0 as i64;
+	let message_id = message.get() as i64;
+	let parent_id = parent.get() as i64;
 	let system_message = system_message.map(|message| message.to_database_string());
 	query!(
 		"
