@@ -56,7 +56,7 @@ pub async fn check_allowance(executor: &Pool<Sqlite>, user: UserId) -> i32 {
 pub fn get_cost(input_tokens: u32, output_tokens: u32, model: ChatGptModel) -> u32 {
 	match model {
 		ChatGptModel::Gpt35Turbo => 1_500 * input_tokens + 2_000 * output_tokens,
-		ChatGptModel::Gpt4 => 30_000 * input_tokens + 30_000 * output_tokens,
+		ChatGptModel::Gpt4 => 30_000 * input_tokens + 60_000 * output_tokens,
 		_ => unimplemented!("Other models are not suppported"),
 	}
 }
