@@ -6,7 +6,7 @@ use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::{model::prelude::UserId, prelude::Context};
 use sqlx::{query, Pool, Sqlite};
 
-use crate::chatgpt::ChatGptModel;
+use crate::chatgpt::ChatgptModel;
 use crate::util::interaction_reply;
 
 /// The allowance a user gets over time each day, in nanodollars.
@@ -53,10 +53,10 @@ pub async fn check_allowance(executor: &Pool<Sqlite>, user: UserId) -> i32 {
 }
 
 /// Get the cost of a query in nanodollars.
-pub fn get_cost(input_tokens: u32, output_tokens: u32, model: ChatGptModel) -> u32 {
+pub fn get_cost(input_tokens: u32, output_tokens: u32, model: ChatgptModel) -> u32 {
 	match model {
-		ChatGptModel::Gpt35Turbo => 1_500 * input_tokens + 2_000 * output_tokens,
-		ChatGptModel::Gpt4 => 30_000 * input_tokens + 60_000 * output_tokens,
+		ChatgptModel::Gpt35Turbo => 1_500 * input_tokens + 2_000 * output_tokens,
+		ChatgptModel::Gpt4 => 30_000 * input_tokens + 60_000 * output_tokens,
 		_ => unimplemented!("Other models are not suppported"),
 	}
 }
@@ -67,7 +67,7 @@ pub async fn spend_allowance(
 	user: UserId,
 	input_tokens: u32,
 	output_tokens: u32,
-	model: ChatGptModel,
+	model: ChatgptModel,
 ) -> (i32, i32) {
 	let cost = get_cost(input_tokens, output_tokens, model);
 

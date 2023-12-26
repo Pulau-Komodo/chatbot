@@ -9,6 +9,7 @@ mod allowances;
 mod chatgpt;
 mod conversations;
 mod discord_client;
+mod one_off_response;
 mod response_styles;
 mod user_settings;
 mod util;

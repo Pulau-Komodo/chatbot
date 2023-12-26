@@ -41,7 +41,7 @@ impl Chatgpt {
 	pub async fn send(
 		&self,
 		history: &[ChatMessage],
-		model: ChatGptModel,
+		model: ChatgptModel,
 		temperature: f32,
 		max_tokens: u32,
 	) -> Result<CompletionResponse, String> {
@@ -90,7 +90,7 @@ impl Chatgpt {
 /// The engine version for ChatGPT
 #[derive(Debug, Default, Copy, Clone, PartialEq, PartialOrd)]
 #[allow(non_camel_case_types)]
-pub enum ChatGptModel {
+pub enum ChatgptModel {
 	/// Standard engine: `gpt-3.5-turbo`
 	#[default]
 	Gpt35Turbo,
@@ -108,30 +108,30 @@ pub enum ChatGptModel {
 	_Custom(&'static str),
 }
 
-impl TryInto<ChatGptModel> for String {
+impl TryInto<ChatgptModel> for String {
 	type Error = ();
 
-	fn try_into(self) -> Result<ChatGptModel, Self::Error> {
+	fn try_into(self) -> Result<ChatgptModel, Self::Error> {
 		let model = match self.as_str() {
-			"gpt-3.5-turbo" => ChatGptModel::Gpt35Turbo,
-			"gpt-3.5-turbo-030" => ChatGptModel::_Gpt35Turbo_0301,
-			"gpt-4" => ChatGptModel::Gpt4,
-			"gpt-4-32k" => ChatGptModel::_Gpt4_32k,
-			"gpt-4-0314" => ChatGptModel::_Gpt4_0314,
-			"gpt-4-32k-0314" => ChatGptModel::_Gpt4_32k_0314,
+			"gpt-3.5-turbo" => ChatgptModel::Gpt35Turbo,
+			"gpt-3.5-turbo-030" => ChatgptModel::_Gpt35Turbo_0301,
+			"gpt-4" => ChatgptModel::Gpt4,
+			"gpt-4-32k" => ChatgptModel::_Gpt4_32k,
+			"gpt-4-0314" => ChatgptModel::_Gpt4_0314,
+			"gpt-4-32k-0314" => ChatgptModel::_Gpt4_32k_0314,
 			_ => return Err(()),
 		};
 		Ok(model)
 	}
 }
 
-impl Display for ChatGptModel {
+impl Display for ChatgptModel {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str(self.as_str())
 	}
 }
 
-impl ChatGptModel {
+impl ChatgptModel {
 	pub fn as_str(&self) -> &'static str {
 		match self {
 			Self::Gpt35Turbo => "gpt-3.5-turbo",
@@ -143,7 +143,7 @@ impl ChatGptModel {
 			Self::_Custom(custom) => custom,
 		}
 	}
-	pub fn as_friendly_str(&self) -> &'static str {
+	pub fn friendly_str(&self) -> &'static str {
 		match self {
 			Self::Gpt35Turbo => "GPT-3.5 Turbo",
 			Self::_Gpt35Turbo_0301 => "GPT-3.5 Turbo 0301",
@@ -178,6 +178,27 @@ pub struct ChatMessage {
 	pub role: Role,
 	/// Actual content of the message
 	pub content: String,
+}
+
+impl ChatMessage {
+	pub fn system(content: String) -> Self {
+		Self {
+			role: Role::System,
+			content,
+		}
+	}
+	pub fn assistant(content: String) -> Self {
+		Self {
+			role: Role::Assistant,
+			content,
+		}
+	}
+	pub fn user(content: String) -> Self {
+		Self {
+			role: Role::User,
+			content,
+		}
+	}
 }
 
 /// A request struct sent to the API to request a message completion

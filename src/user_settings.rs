@@ -5,11 +5,11 @@ use serenity::{
 };
 use sqlx::{query, Pool, Sqlite};
 
-use crate::{chatgpt::ChatGptModel, response_styles::SystemMessage, util::interaction_reply};
+use crate::{chatgpt::ChatgptModel, response_styles::SystemMessage, util::interaction_reply};
 
 // Model
 
-async fn get_model(executor: &Pool<Sqlite>, user: UserId) -> Option<ChatGptModel> {
+async fn get_model(executor: &Pool<Sqlite>, user: UserId) -> Option<ChatgptModel> {
 	let user_id = user.get() as i64;
 	query!(
 		"
@@ -28,7 +28,7 @@ async fn get_model(executor: &Pool<Sqlite>, user: UserId) -> Option<ChatGptModel
 	.and_then(|record| record.model.map(|model| model.try_into().unwrap()))
 }
 
-async fn set_model(executor: &Pool<Sqlite>, user: UserId, model: Option<ChatGptModel>) {
+async fn set_model(executor: &Pool<Sqlite>, user: UserId, model: Option<ChatgptModel>) {
 	let user_id = user.get() as i64;
 	let model = model.map(|model| model.as_str());
 	query!(
@@ -49,7 +49,7 @@ async fn set_model(executor: &Pool<Sqlite>, user: UserId, model: Option<ChatGptM
 	.unwrap();
 }
 
-pub async fn consume_model_setting(executor: &Pool<Sqlite>, user: UserId) -> Option<ChatGptModel> {
+pub async fn consume_model_setting(executor: &Pool<Sqlite>, user: UserId) -> Option<ChatgptModel> {
 	let model_setting = get_model(executor, user).await;
 	if model_setting.is_some() {
 		set_model(executor, user, None).await;
@@ -63,7 +63,7 @@ pub async fn command_set_gpt4(
 	executor: &Pool<Sqlite>,
 ) -> Result<(), ()> {
 	let current_model = get_model(executor, interaction.user.id).await;
-	let new_model = current_model.xor(Some(ChatGptModel::Gpt4));
+	let new_model = current_model.xor(Some(ChatgptModel::Gpt4));
 	set_model(executor, interaction.user.id, new_model).await;
 	let output = match new_model {
 		Some(model) => format!("Model for the next message set to {}.", model),

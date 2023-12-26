@@ -3,16 +3,16 @@ use serenity::{
 	prelude::Context,
 };
 use sqlx::{query, Pool, Sqlite};
-use std::fmt::Write;
 
 use crate::{
 	allowances::{check_allowance, nanodollars_to_millidollars, spend_allowance, MAX_MILLIDOLLARS},
-	chatgpt::{ChatGptModel, ChatMessage, Chatgpt, Role},
+	chatgpt::{ChatMessage, Chatgpt, ChatgptModel},
 	response_styles::SystemMessage,
 	user_settings::{consume_model_setting, get_system_message},
+	util::format_chatgpt_message,
 };
 
-const MODEL: ChatGptModel = ChatGptModel::Gpt35Turbo;
+const DEFAULT_MODEL: ChatgptModel = ChatgptModel::Gpt35Turbo;
 const TEMPERATURE: f32 = 0.5;
 const MAX_TOKENS: u32 = 400;
 
@@ -47,24 +47,15 @@ impl Chatgpt {
 				// Found no actual history, so ignore this message. This most typically happens when replying to a bot message that was not a GPT response, like an error message.
 				return;
 			}
-			history.push(ChatMessage {
-				role: Role::User,
-				content: input.clone(),
-			});
+			history.push(ChatMessage::user(input.clone()));
 			(history, system_message, system_message_was_set)
 		} else {
 			let system_message = get_system_message(executor, message.author.id).await;
 			let system_message_was_set = system_message.is_some();
 			let system_message = system_message.unwrap_or_default();
 			let history = [
-				ChatMessage {
-					role: Role::System,
-					content: system_message.text(),
-				},
-				ChatMessage {
-					role: Role::User,
-					content: input.clone(),
-				},
+				ChatMessage::system(system_message.text()),
+				ChatMessage::user(input.clone()),
 			]
 			.to_vec();
 			(history, system_message, system_message_was_set)
@@ -72,9 +63,9 @@ impl Chatgpt {
 
 		let model = consume_model_setting(executor, message.author.id)
 			.await
-			.unwrap_or(MODEL);
+			.unwrap_or(DEFAULT_MODEL);
 
-		let mut response = match self.send(&history, model, TEMPERATURE, MAX_TOKENS).await {
+		let response = match self.send(&history, model, TEMPERATURE, MAX_TOKENS).await {
 			Ok(response) => response,
 			Err(error_message) => {
 				message.reply(context.http, error_message).await.unwrap();
@@ -91,31 +82,14 @@ impl Chatgpt {
 		)
 		.await;
 
-		let output = std::mem::take(&mut response.message_choices[0].message.content);
-		let ending = match response.message_choices[0].finish_reason.as_str() {
-			// It was done.
-			"stop" => "",
-			// It got cut off by the token limit.
-			"length" => "…",
-			// Omitted content due to content filters.
-			"content_filter" => " \\🙊",
-			// "function call" should only happen if the AI decides to call a function, "null" means "API response still in progress or incomplete", and other options are not listed.
-			reason => {
-				eprintln!("GPT API somehow returned finish reason \"{reason}\".");
-				"⁇"
-			}
-		};
-		let mut full_reply = format!(
-			"{} {}{} (-{} m$, {} m$)",
+		let full_reply = format_chatgpt_message(
+			&response.message_choices[0],
 			system_message.emoji(),
-			output,
-			ending,
-			nanodollars_to_millidollars(cost),
-			nanodollars_to_millidollars(allowance),
+			cost,
+			allowance,
+			(model != DEFAULT_MODEL).then_some(model),
 		);
-		if !matches!(model, ChatGptModel::Gpt35Turbo) {
-			write!(full_reply, " ({})", model.as_friendly_str()).unwrap(); // Add non-standard model to the message
-		}
+		let output = &response.message_choices[0].message.content;
 		let own_message = message.reply(context.http, full_reply).await.unwrap();
 
 		let system_message = system_message_was_set.then_some(system_message);
@@ -125,12 +99,12 @@ impl Chatgpt {
 				own_message.id,
 				parent_id,
 				&input,
-				&output,
+				output,
 				system_message,
 			)
 			.await;
 		} else {
-			store_root_message(executor, own_message.id, &input, &output, system_message).await;
+			store_root_message(executor, own_message.id, &input, output, system_message).await;
 		}
 	}
 }
@@ -172,23 +146,14 @@ async fn get_history_from_database(
 	.fetch_all(executor)
 	.await
 	.unwrap();
-	std::iter::once(ChatMessage {
-		role: Role::System,
-		content: system_message,
-	})
-	.chain(stored_history.into_iter().rev().flat_map(|record| {
-		[
-			ChatMessage {
-				role: Role::User,
-				content: record.input,
-			},
-			ChatMessage {
-				role: Role::Assistant,
-				content: record.output,
-			},
-		]
-	}))
-	.collect()
+	std::iter::once(ChatMessage::system(system_message))
+		.chain(stored_history.into_iter().rev().flat_map(|record| {
+			[
+				ChatMessage::user(record.input),
+				ChatMessage::assistant(record.output),
+			]
+		}))
+		.collect()
 }
 
 async fn get_message_system_message(

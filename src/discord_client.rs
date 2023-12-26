@@ -2,7 +2,7 @@ use itertools::Itertools;
 use serenity::{async_trait, model::prelude::*, prelude::*};
 use sqlx::{Pool, Sqlite};
 
-use crate::{allowances, chatgpt::Chatgpt, user_settings};
+use crate::{allowances, chatgpt::Chatgpt, one_off_response, user_settings};
 
 /// If there is a mention on either end of the string, removes it and trims. Removes only one mention.
 fn strip_mention(text: String, mentions: &[String]) -> String {
@@ -120,26 +120,33 @@ impl EventHandler for DiscordEventHandler {
 
 	async fn interaction_create(&self, context: Context, interaction: Interaction) {
 		if let Interaction::Command(interaction) = interaction {
-			match interaction.data.name.as_str() {
+			let _ = match interaction.data.name.as_str() {
 				"allowance" => {
-					allowances::command_check(context, interaction, &self.database)
-						.await
-						.unwrap();
+					allowances::command_check(context, interaction, &self.database).await
 				}
 				"spent" => {
-					allowances::command_expenditure(context, interaction, &self.database)
-						.await
-						.unwrap();
+					allowances::command_expenditure(context, interaction, &self.database).await
 				}
-				"gpt4" => user_settings::command_set_gpt4(context, interaction, &self.database)
-					.await
-					.unwrap(),
+				"gpt4" => {
+					user_settings::command_set_gpt4(context, interaction, &self.database).await
+				}
 				"personality" => {
 					user_settings::command_set_system_message(context, interaction, &self.database)
 						.await
-						.unwrap()
 				}
-				_ => (),
+				"gptdictionary" => {
+					one_off_response::command_dictionary(
+						context,
+						interaction,
+						&self.chatgpt,
+						&self.database,
+					)
+					.await
+				}
+				name => {
+					eprintln!("Received unknown command: {}", name);
+					Err(())
+				}
 			};
 		}
 	}
@@ -155,6 +162,7 @@ impl EventHandler for DiscordEventHandler {
 						allowances::register_check_expenditure(),
 						user_settings::register_set_gpt4(),
 						user_settings::register_set_system_message(),
+						one_off_response::create_command_dictionary(),
 					];
 					let commands = guild.set_commands(&context.http, commands).await.unwrap();
 					let command_names = commands.into_iter().map(|command| command.name).join(", ");
