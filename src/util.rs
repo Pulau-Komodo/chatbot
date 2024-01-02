@@ -64,24 +64,22 @@ pub fn format_chatgpt_message(
 ) -> String {
 	let output = &response.message.content;
 	let ending = ending_from_finish_reason(&response.finish_reason);
+	let cost = nanodollars_to_millidollars(cost);
+	let allowance = nanodollars_to_millidollars(allowance);
 	if let Some(model) = model {
 		format!(
 			"{} {}{} (-{} m$, {} m$) ({})",
 			emoji,
 			output,
 			ending,
-			nanodollars_to_millidollars(cost),
-			nanodollars_to_millidollars(allowance),
+			cost,
+			allowance,
 			model.friendly_str(),
 		)
 	} else {
 		format!(
 			"{} {}{} (-{} m$, {} m$)",
-			emoji,
-			output,
-			ending,
-			nanodollars_to_millidollars(cost),
-			nanodollars_to_millidollars(allowance),
+			emoji, output, ending, cost, allowance,
 		)
 	}
 }
