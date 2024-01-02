@@ -143,6 +143,15 @@ impl EventHandler for DiscordEventHandler {
 					)
 					.await
 				}
+				"judgment" => {
+					one_off_response::command_judgment(
+						context,
+						interaction,
+						&self.chatgpt,
+						&self.database,
+					)
+					.await
+				}
 				name => {
 					eprintln!("Received unknown command: {}", name);
 					Err(())
@@ -163,6 +172,7 @@ impl EventHandler for DiscordEventHandler {
 						user_settings::register_set_gpt4(),
 						user_settings::register_set_system_message(),
 						one_off_response::create_command_dictionary(),
+						one_off_response::create_command_judgment(),
 					];
 					let commands = guild.set_commands(&context.http, commands).await.unwrap();
 					let command_names = commands.into_iter().map(|command| command.name).join(", ");
