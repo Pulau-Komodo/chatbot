@@ -3,6 +3,7 @@
 use std::fs;
 
 use chatgpt::Chatgpt;
+use database::init_database;
 use discord_client::DiscordEventHandler;
 use serenity::{http::Http, prelude::GatewayIntents};
 use sqlx::sqlite::SqlitePoolOptions;
@@ -10,6 +11,7 @@ use sqlx::sqlite::SqlitePoolOptions;
 mod allowances;
 mod chatgpt;
 mod conversations;
+mod database;
 mod discord_client;
 mod one_off_response;
 mod response_styles;
@@ -18,13 +20,9 @@ mod util;
 
 #[tokio::main]
 async fn main() {
-	let discord_token = fs::read_to_string("./token.txt").expect("Could not read token file");
+	let db_pool = init_database("./data/db.db").await;
 
-	let db_pool = SqlitePoolOptions::new()
-		.max_connections(4)
-		.connect("./data/db.db")
-		.await
-		.unwrap();
+	let discord_token = fs::read_to_string("./token.txt").expect("Could not read token file");
 
 	let chatgpt_api_key =
 		fs::read_to_string("./gpt_api_key.txt").expect("Could not read GPT API key file");
