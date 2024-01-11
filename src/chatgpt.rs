@@ -8,18 +8,22 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+use crate::config::Config;
+
 // The client that operates the ChatGPT API
 #[derive(Debug, Clone)]
 pub struct Chatgpt {
 	client: reqwest::Client,
 	api_url: Url,
+	daily_allowance: u32,
+	accrual_days: f32,
 }
 
 impl Chatgpt {
 	/// Constructs a new ChatGPT API client with provided API key and URL.
 	///
 	/// `api_url` is the URL of the /v1/chat/completions endpoint. Can be used to set a proxy.
-	pub fn new<S>(api_key: S, api_url: Option<Url>) -> Result<Self, ()>
+	pub fn new<S>(api_key: S, api_url: Option<Url>, config: Config) -> Result<Self, ()>
 	where
 		S: Display,
 	{
@@ -34,7 +38,13 @@ impl Chatgpt {
 			.default_headers(headers)
 			.build()
 			.unwrap();
-		Ok(Self { client, api_url })
+
+		Ok(Self {
+			client,
+			api_url,
+			daily_allowance: config.daily_allowance,
+			accrual_days: config.accrual_days,
+		})
 	}
 
 	/// Sends a conversation to the API and gets the next message.
@@ -84,6 +94,12 @@ impl Chatgpt {
 			}
 			ServerResponse::Completion(completion) => Ok(completion),
 		}
+	}
+	pub fn daily_allowance(&self) -> u32 {
+		self.daily_allowance
+	}
+	pub fn accrual_days(&self) -> f32 {
+		self.accrual_days
 	}
 }
 

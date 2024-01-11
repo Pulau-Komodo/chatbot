@@ -122,7 +122,14 @@ impl EventHandler for DiscordEventHandler {
 		if let Interaction::Command(interaction) = interaction {
 			let _ = match interaction.data.name.as_str() {
 				"allowance" => {
-					allowances::command_check(context, interaction, &self.database).await
+					allowances::command_check(
+						context,
+						interaction,
+						&self.database,
+						self.chatgpt.daily_allowance(),
+						self.chatgpt.accrual_days(),
+					)
+					.await
 				}
 				"spent" => {
 					allowances::command_expenditure(context, interaction, &self.database).await

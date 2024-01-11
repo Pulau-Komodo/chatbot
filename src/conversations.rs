@@ -5,7 +5,10 @@ use serenity::{
 use sqlx::{query, Pool, Sqlite};
 
 use crate::{
-	allowances::{check_allowance, nanodollars_to_millidollars, spend_allowance, MAX_MILLIDOLLARS},
+	allowances::{
+		check_allowance, get_max_allowance_millidollars, nanodollars_to_millidollars,
+		spend_allowance,
+	},
 	chatgpt::{ChatMessage, Chatgpt, ChatgptModel},
 	response_styles::SystemMessage,
 	user_settings::{consume_model_setting, get_system_message},
@@ -26,12 +29,20 @@ impl Chatgpt {
 		message: Message,
 		parent_id: Option<MessageId>,
 	) {
-		let allowance = check_allowance(executor, message.author.id).await;
+		let allowance = check_allowance(
+			executor,
+			message.author.id,
+			self.daily_allowance(),
+			self.accrual_days(),
+		)
+		.await;
+		let max_millidollars =
+			get_max_allowance_millidollars(self.daily_allowance(), self.accrual_days()).await;
 		if allowance <= 0 {
 			let reply = format!(
 				"You are out of allowance. ({}m$/{}m$)",
 				nanodollars_to_millidollars(allowance),
-				MAX_MILLIDOLLARS
+				max_millidollars
 			);
 			message.reply(context.http, reply).await.unwrap();
 			return;
@@ -79,6 +90,8 @@ impl Chatgpt {
 			response.usage.prompt_tokens,
 			response.usage.completion_tokens,
 			model,
+			self.daily_allowance(),
+			self.accrual_days(),
 		)
 		.await;
 

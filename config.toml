@@ -1,0 +1,4 @@
+# The allowance each user gets over time each day, in nanodollars.
+daily_allowance = 2_500_000
+# The number of days' worth of allowance a user can save up before it stops accruing.
+accrual_days = 4.0

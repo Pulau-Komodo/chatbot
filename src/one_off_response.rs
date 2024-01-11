@@ -6,7 +6,10 @@ use serenity::{
 use sqlx::{Pool, Sqlite};
 
 use crate::{
-	allowances::{check_allowance, nanodollars_to_millidollars, spend_allowance, MAX_MILLIDOLLARS},
+	allowances::{
+		check_allowance, get_max_allowance_millidollars, nanodollars_to_millidollars,
+		spend_allowance,
+	},
 	chatgpt::{ChatMessage, Chatgpt, ChatgptModel},
 	util::{format_chatgpt_message, interaction_followup},
 };
@@ -25,12 +28,15 @@ impl Chatgpt {
 		emoji: &str,
 		input: &str,
 	) -> Result<String, String> {
-		let allowance = check_allowance(executor, user).await;
+		let allowance =
+			check_allowance(executor, user, self.daily_allowance(), self.accrual_days()).await;
+		let max_allowance =
+			get_max_allowance_millidollars(self.daily_allowance(), self.accrual_days()).await;
 		if allowance <= 0 {
 			return Err(format!(
 				"You are out of allowance. ({}m$/{}m$)",
 				nanodollars_to_millidollars(allowance),
-				MAX_MILLIDOLLARS
+				max_allowance
 			));
 		}
 
@@ -52,6 +58,8 @@ impl Chatgpt {
 			response.usage.prompt_tokens,
 			response.usage.completion_tokens,
 			MODEL,
+			self.daily_allowance(),
+			self.accrual_days(),
 		)
 		.await;
 

@@ -9,12 +9,16 @@ use sqlx::{query, Pool, Sqlite};
 use crate::chatgpt::ChatgptModel;
 use crate::util::interaction_reply;
 
-/// The allowance a user gets over time each day, in nanodollars.
-const DAILY_ALLOWANCE: u32 = 20_000_000;
-/// The allowance a user can save up before it stops accruing, in nanodollars.
-const MAX_ALLOWANCE: u32 = DAILY_ALLOWANCE * 2;
+/// The allowance a user gets over time each day, in nanodollars, by default.
+pub const DEFAULT_DAILY_ALLOWANCE: u32 = 2_500_000;
+/// The number of days' worth of allowance a user can save up before it stops accruing, by default.
+pub const DEFAULT_ACCRUAL_DAYS: f32 = 4.0;
 
-const MILLISECONDS_PER_DAY: f32 = 1000.0 * 60.0 * 60.0 * 24.0;
+const MILLISECONDS_PER_DAY: u64 = 1000 * 60 * 60 * 24;
+
+pub async fn get_max_allowance_millidollars(daily_allowance: u32, accrual_days: f32) -> f32 {
+	nanodollars_to_millidollars((daily_allowance as f32 * accrual_days) as i32)
+}
 
 async fn time_to_full(executor: &Pool<Sqlite>, user: UserId) -> Option<DateTime<Utc>> {
 	let user_id = user.get() as i64;
@@ -36,19 +40,28 @@ async fn time_to_full(executor: &Pool<Sqlite>, user: UserId) -> Option<DateTime<
 		.map(|record| DateTime::from_naive_utc_and_offset(record.time_to_full, Utc).max(Utc::now()))
 }
 
-fn allowance_from_time_to_full(time_to_full: DateTime<Utc>) -> i32 {
+fn allowance_from_time_to_full(
+	time_to_full: DateTime<Utc>,
+	daily_allowance: u32,
+	accrual_days: f32,
+) -> i32 {
 	let duration = time_to_full - Utc::now();
-	let days_left = duration.num_milliseconds() as f32 / MILLISECONDS_PER_DAY;
-	let missing_allowance = days_left * DAILY_ALLOWANCE as f32;
-	(MAX_ALLOWANCE as f32 - missing_allowance) as i32
+	let days_left = duration.num_milliseconds() as f32 / MILLISECONDS_PER_DAY as f32;
+	let missing_allowance = days_left * daily_allowance as f32;
+	(daily_allowance as f32 * accrual_days - missing_allowance) as i32
 }
 
-pub async fn check_allowance(executor: &Pool<Sqlite>, user: UserId) -> i32 {
+pub async fn check_allowance(
+	executor: &Pool<Sqlite>,
+	user: UserId,
+	daily_allowance: u32,
+	accrual_days: f32,
+) -> i32 {
 	let time = time_to_full(executor, user).await;
 	if let Some(time) = time {
-		allowance_from_time_to_full(time)
+		allowance_from_time_to_full(time, daily_allowance, accrual_days)
 	} else {
-		MAX_ALLOWANCE as i32
+		(daily_allowance as f32 * accrual_days) as i32
 	}
 }
 
@@ -68,10 +81,12 @@ pub async fn spend_allowance(
 	input_tokens: u32,
 	output_tokens: u32,
 	model: ChatgptModel,
+	daily_allowance: u32,
+	accrual_days: f32,
 ) -> (i32, i32) {
 	let cost = get_cost(input_tokens, output_tokens, model);
 
-	let added_milliseconds = cost as u64 * 1000 * 60 * 60 * 24 / DAILY_ALLOWANCE as u64;
+	let added_milliseconds = cost as u64 * MILLISECONDS_PER_DAY / daily_allowance as u64;
 	let time = time_to_full(executor, user).await.unwrap_or_else(Utc::now);
 	let new_time = time.add(Duration::milliseconds(added_milliseconds as i64));
 	let user_id = user.get() as i64;
@@ -108,13 +123,17 @@ pub async fn spend_allowance(
 	.await
 	.unwrap();
 
-	(allowance_from_time_to_full(new_time), cost as i32)
+	(
+		allowance_from_time_to_full(new_time, daily_allowance, accrual_days),
+		cost as i32,
+	)
 }
 
 const PRECISION_MULTIPLIER: f32 = 100.0;
 const MILLIDOLLARS_PER_NANODOLLAR: f32 = 1.0e6;
 /// The allowance in millidollars, for strings.
-pub const MAX_MILLIDOLLARS: f32 = MAX_ALLOWANCE as f32 / MILLIDOLLARS_PER_NANODOLLAR;
+// pub const MAX_MILLIDOLLARS: f32 =
+// 	(DEFAULT_DAILY_ALLOWANCE * DEFAULT_ACCRUAL_DAYS) as f32 / MILLIDOLLARS_PER_NANODOLLAR;
 
 /// Converts an integer number of nanodollars to a float number of millidollars, rounded to 2 decimal places.
 pub fn nanodollars_to_millidollars(allowance: i32) -> f32 {
@@ -126,12 +145,17 @@ pub async fn command_check(
 	context: Context,
 	interaction: CommandInteraction,
 	executor: &Pool<Sqlite>,
+	daily_allowance: u32,
+	accrual_days: f32,
 ) -> Result<(), ()> {
-	let allowance = check_allowance(executor, interaction.user.id).await;
+	let allowance =
+		check_allowance(executor, interaction.user.id, daily_allowance, accrual_days).await;
 	let millidollars = nanodollars_to_millidollars(allowance);
+	let max_millidollars =
+		nanodollars_to_millidollars((daily_allowance as f32 * accrual_days) as i32);
 	let content = format!(
 		"You have {} out of {} millidollars left.",
-		millidollars, MAX_MILLIDOLLARS
+		millidollars, max_millidollars
 	);
 	interaction_reply(context, interaction, content, false)
 		.await
