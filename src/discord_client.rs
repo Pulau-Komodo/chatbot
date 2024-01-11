@@ -51,18 +51,14 @@ impl DiscordEventHandler {
 	/// The message looks like something to start or continue a conversation with.
 	async fn handle_conversation_message(&self, context: Context, mut message: Message) {
 		let content = std::mem::take(&mut message.content);
-		if let Some(referenced) = std::mem::take(&mut message.referenced_message) {
+		let mut parent = None;
+		let referenced = std::mem::take(&mut message.referenced_message);
+
+		let content = if let Some(referenced) = referenced {
 			if referenced.author.id == context.cache.current_user().id {
 				// A message replying to the bot's own message
-				self.chatgpt
-					.query(
-						&self.database,
-						context,
-						content,
-						message,
-						Some(referenced.id),
-					)
-					.await;
+				parent = Some(referenced.id);
+				content
 			} else if let Some(referenced_contents) =
 				get_referenced_contents(&context.http, referenced).await
 			{
@@ -73,16 +69,12 @@ impl DiscordEventHandler {
 					if referenced_contents.is_empty() {
 						return; // Referenced message had only a mention, makes no sense, ignore
 					}
-					self.chatgpt
-						.query(&self.database, context, referenced_contents, message, None)
-						.await;
+					referenced_contents
 				} else {
 					// A message replying to something, and containing its own text as well
 					use std::fmt::Write;
 					write!(text, " \"{referenced_contents}\"").unwrap();
-					self.chatgpt
-						.query(&self.database, context, text, message, None)
-						.await;
+					text
 				}
 			} else {
 				// It has a referenced message, but the bot couldn't get it
@@ -90,6 +82,7 @@ impl DiscordEventHandler {
 					"Could not get message referenced by message {}",
 					message.id.get()
 				);
+				return;
 			}
 		} else {
 			// A message not replying to anything, and pinging the bot
@@ -99,10 +92,12 @@ impl DiscordEventHandler {
 				// Pinged the bot but had no mention at either end, so don't take it as being addressed.
 				return;
 			}
-			self.chatgpt
-				.query(&self.database, context, text, message, None)
-				.await;
-		}
+			text
+		};
+
+		self.chatgpt
+			.query(&self.database, context, content, message, parent)
+			.await;
 	}
 }
 
