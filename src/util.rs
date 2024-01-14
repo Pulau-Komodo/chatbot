@@ -1,10 +1,12 @@
 use serenity::{
-	all::CommandInteraction,
+	all::{CommandInteraction, Message},
 	builder::{
-		CreateInteractionResponse, CreateInteractionResponseFollowup,
-		CreateInteractionResponseMessage,
+		CreateEmbed, CreateInteractionResponse, CreateInteractionResponseFollowup,
+		CreateInteractionResponseMessage, CreateMessage,
 	},
-	prelude::Context,
+	constants,
+	http::Http,
+	prelude::{Context, SerenityError},
 };
 
 use crate::{
@@ -12,46 +14,96 @@ use crate::{
 	chatgpt::{ChatgptModel, MessageChoice},
 };
 
+/// Replies to a message, without pinging, putting the text into an embed if it's too long.
+pub async fn reply<S>(message: Message, http: &Http, content: S) -> Result<Message, SerenityError>
+where
+	S: Into<String>,
+{
+	let content: String = content.into();
+	let message_builder = CreateMessage::new().reference_message(&message);
+	if content.chars().count() <= constants::MESSAGE_CODE_LIMIT {
+		message
+			.channel_id
+			.send_message(http, message_builder.content(content))
+			.await
+	} else {
+		message
+			.channel_id
+			.send_message(
+				http,
+				message_builder.add_embed(CreateEmbed::new().description(content)),
+			)
+			.await
+	}
+}
+
+/// Replies to an interaction, putting the text into an embed if it's too long.
 pub async fn interaction_reply<S>(
 	context: Context,
 	interaction: CommandInteraction,
 	content: S,
 	ephemeral: bool,
-) -> serenity::Result<()>
+) -> Result<(), SerenityError>
 where
 	S: Into<String>,
 {
-	interaction
-		.create_response(
-			&context.http,
-			CreateInteractionResponse::Message(
-				CreateInteractionResponseMessage::new()
-					.content(content)
-					.ephemeral(ephemeral),
-			),
-		)
-		.await
+	let content: String = content.into();
+	if content.chars().count() <= constants::MESSAGE_CODE_LIMIT {
+		interaction
+			.create_response(
+				&context.http,
+				CreateInteractionResponse::Message(
+					CreateInteractionResponseMessage::new()
+						.content(content)
+						.ephemeral(ephemeral),
+				),
+			)
+			.await
+	} else {
+		interaction
+			.create_response(
+				&context.http,
+				CreateInteractionResponse::Message(
+					CreateInteractionResponseMessage::new()
+						.embed(CreateEmbed::new().description(content))
+						.ephemeral(ephemeral),
+				),
+			)
+			.await
+	}
 }
 
+/// Follows up on an interaction reply (typically a defer), putting the text into an embed if it's too long.
 pub async fn interaction_followup<S>(
 	context: Context,
 	interaction: CommandInteraction,
 	content: S,
 	ephemeral: bool,
-) -> Result<(), ()>
+) -> Result<(), SerenityError>
 where
 	S: Into<String>,
 {
-	interaction
-		.create_followup(
-			&context.http,
-			CreateInteractionResponseFollowup::new()
-				.content(content)
-				.ephemeral(ephemeral),
-		)
-		.await
-		.map_err(|_| ())
-		.map(|_| ())
+	let content: String = content.into();
+	if content.chars().count() <= constants::MESSAGE_CODE_LIMIT {
+		interaction
+			.create_followup(
+				&context.http,
+				CreateInteractionResponseFollowup::new()
+					.content(content)
+					.ephemeral(ephemeral),
+			)
+			.await
+	} else {
+		interaction
+			.create_followup(
+				&context.http,
+				CreateInteractionResponseFollowup::new()
+					.embed(CreateEmbed::new().description(content))
+					.ephemeral(ephemeral),
+			)
+			.await
+	}
+	.map(|_| ())
 }
 
 /// Attaches formatting to the message from ChatGPT, like "🤖 Hello. (-0.25 m$, 39.95 m$) (GPT-4)".

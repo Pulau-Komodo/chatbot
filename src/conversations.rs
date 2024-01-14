@@ -13,7 +13,7 @@ use crate::{
 	config::SystemMessages,
 	response_styles::Personality,
 	user_settings::{consume_model_setting, get_user_personality},
-	util::format_chatgpt_message,
+	util::{format_chatgpt_message, reply},
 };
 
 const DEFAULT_MODEL: ChatgptModel = ChatgptModel::Gpt35Turbo;
@@ -107,7 +107,7 @@ impl Chatgpt {
 			(model != DEFAULT_MODEL).then_some(model),
 		);
 		let output = &response.message_choices[0].message.content;
-		let own_message = message.reply(context.http, full_reply).await.unwrap();
+		let own_message = reply(message, &context.http, full_reply).await.unwrap();
 
 		if let Some(parent_id) = parent_id {
 			store_child_message(
