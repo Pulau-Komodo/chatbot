@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use chrono::{DateTime, Duration, Utc};
 use serenity::all::{CommandInteraction, CommandOptionType};
 use serenity::builder::{CreateCommand, CreateCommandOption};
@@ -88,7 +86,7 @@ pub async fn spend_allowance(
 
 	let added_milliseconds = cost as u64 * MILLISECONDS_PER_DAY / daily_allowance as u64;
 	let time = time_to_full(executor, user).await.unwrap_or_else(Utc::now);
-	let new_time = time.add(Duration::milliseconds(added_milliseconds as i64));
+	let new_time = time + Duration::milliseconds(added_milliseconds as i64);
 	let user_id = user.get() as i64;
 
 	query!(
