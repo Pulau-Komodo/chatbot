@@ -51,29 +51,15 @@ impl Chatgpt {
 		}
 
 		let (history, personality) = if let Some(parent_id) = parent_id {
-			let personality = get_message_personality(executor, parent_id)
-				.await
-				.unwrap_or_default();
-			let system_message = system_messages.personality_message(&personality);
-			let mut history =
-				get_history_from_database(executor, parent_id, system_message.to_string()).await;
-			if history.len() == 1 {
-				// Found no actual history, so ignore this message. This most typically happens when replying to a bot message that was not a GPT response, like an error message.
+			let Some(values) =
+				continue_conversation(executor, parent_id, system_messages, &input).await
+			else {
+				// Parent not found.
 				return;
-			}
-			history.push(ChatMessage::user(input.clone()));
-			(history, personality)
+			};
+			values
 		} else {
-			let personality = get_user_personality(executor, message.author.id)
-				.await
-				.unwrap_or_default();
-			let system_message = system_messages.personality_message(&personality);
-			let history = [
-				ChatMessage::system(system_message.to_string()),
-				ChatMessage::user(input.clone()),
-			]
-			.to_vec();
-			(history, personality)
+			start_conversation(executor, &message, system_messages, &input).await
 		};
 
 		let model = consume_model_setting(executor, message.author.id)
@@ -123,6 +109,46 @@ impl Chatgpt {
 			store_root_message(executor, own_message.id, &input, output, personality).await;
 		}
 	}
+}
+
+/// Attempt to continue an existing conversation from a reply.
+async fn continue_conversation(
+	executor: &Pool<Sqlite>,
+	parent_id: MessageId,
+	system_messages: &SystemMessages,
+	input: &str,
+) -> Option<(Vec<ChatMessage>, Personality)> {
+	let personality = get_message_personality(executor, parent_id)
+		.await
+		.unwrap_or_default();
+	let system_message = system_messages.personality_message(&personality);
+	let mut history =
+		get_history_from_database(executor, parent_id, system_message.to_string()).await;
+	if history.len() == 1 {
+		// Found no actual history, so ignore this message. This most typically happens when replying to a bot message that was not a GPT response, like an error message.
+		return None;
+	}
+	history.push(ChatMessage::user(input.to_string()));
+	Some((history, personality))
+}
+
+/// Start a new conversation.
+async fn start_conversation(
+	executor: &Pool<Sqlite>,
+	message: &Message,
+	system_messages: &SystemMessages,
+	input: &str,
+) -> (Vec<ChatMessage>, Personality) {
+	let personality = get_user_personality(executor, message.author.id)
+		.await
+		.unwrap_or_default();
+	let system_message = system_messages.personality_message(&personality);
+	let history = [
+		ChatMessage::system(system_message.to_string()),
+		ChatMessage::user(input.to_string()),
+	]
+	.to_vec();
+	(history, personality)
 }
 
 async fn get_history_from_database(
