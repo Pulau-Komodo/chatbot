@@ -11,6 +11,7 @@ use crate::{
 		spend_allowance,
 	},
 	chatgpt::{ChatMessage, Chatgpt, ChatgptModel},
+	config::SystemMessages,
 	util::{format_chatgpt_message, interaction_followup},
 };
 
@@ -110,17 +111,16 @@ pub async fn command_dictionary(
 	context: Context,
 	interaction: CommandInteraction,
 	chatgpt: &Chatgpt,
+	system_messages: &SystemMessages,
 	executor: &Pool<Sqlite>,
 ) -> Result<(), ()> {
-	const DICTIONARY_MESSAGE: &str = "You are a terse dictionary. The user will provide a word or phrase, and you need to explain what it means. If you do not know the word or phrase, invent a plausible-sounding fictitious meaning. Your reply needs to be formatted like an abridged dictionary entry.";
-
 	single_text_input_with_system_message(
 		context,
 		interaction,
 		chatgpt,
 		executor,
 		"📖",
-		DICTIONARY_MESSAGE,
+		&system_messages.dictionary,
 	)
 	.await
 }
@@ -142,17 +142,16 @@ pub async fn command_judgment(
 	context: Context,
 	interaction: CommandInteraction,
 	chatgpt: &Chatgpt,
+	system_messages: &SystemMessages,
 	executor: &Pool<Sqlite>,
 ) -> Result<(), ()> {
-	const JUDGMENT_MESSAGE: &str = "You are a royal judge with medieval views on punishment. The user will tell you a moral or social transgression, and you need to come up with a creative and unusual punishment that relates to the crime. For example, annoying drunkards may be told to drink a lot, or they may be made to walk the streets wearing only a barrel. If what the user said is totally fine morally and socially, instead of coming up with a punishment, just tell them it's not a crime.";
-
 	single_text_input_with_system_message(
 		context,
 		interaction,
 		chatgpt,
 		executor,
 		"👨‍⚖️",
-		JUDGMENT_MESSAGE,
+		&system_messages.judgment,
 	)
 	.await
 }

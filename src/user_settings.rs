@@ -5,7 +5,7 @@ use serenity::{
 };
 use sqlx::{query, Pool, Sqlite};
 
-use crate::{chatgpt::ChatgptModel, response_styles::SystemMessage, util::interaction_reply};
+use crate::{chatgpt::ChatgptModel, response_styles::Personality, util::interaction_reply};
 
 // Model
 
@@ -79,9 +79,10 @@ pub fn register_set_gpt4() -> CreateCommand {
 	)
 }
 
-// System message
+// Personality
 
-pub async fn get_system_message(executor: &Pool<Sqlite>, user: UserId) -> Option<SystemMessage> {
+/// Get the chat personality set for the specified user.
+pub async fn get_user_personality(executor: &Pool<Sqlite>, user: UserId) -> Option<Personality> {
 	let user_id = user.get() as i64;
 	query!(
 		"
@@ -100,17 +101,13 @@ pub async fn get_system_message(executor: &Pool<Sqlite>, user: UserId) -> Option
 	.and_then(|record| {
 		record
 			.system_message
-			.map(|message| SystemMessage::from_database_str(&message))
+			.map(|message| Personality::from_database_str(&message))
 	})
 }
 
-async fn set_system_message(
-	executor: &Pool<Sqlite>,
-	user: UserId,
-	system_message: Option<SystemMessage>,
-) {
+async fn set_personality(executor: &Pool<Sqlite>, user: UserId, personality: Option<Personality>) {
 	let user_id = user.get() as i64;
-	let system_message = system_message.map(|message| message.to_database_string());
+	let system_message = personality.map(|message| message.to_database_string());
 	query!(
 		"
 		INSERT INTO
@@ -129,40 +126,42 @@ async fn set_system_message(
 	.unwrap();
 }
 
-pub async fn command_set_system_message(
+pub async fn command_set_personality(
 	context: Context,
 	interaction: CommandInteraction,
 	executor: &Pool<Sqlite>,
 ) -> Result<(), ()> {
-	let current_system_message = get_system_message(executor, interaction.user.id).await;
-	let new_system_message = interaction
+	let current_personality = get_user_personality(executor, interaction.user.id).await;
+	let new_personality = interaction
 		.data
 		.options
 		.first()
 		.and_then(|option| option.value.as_str())
-		.map(SystemMessage::from_database_str);
+		.map(Personality::from_database_str);
 
-	if current_system_message == new_system_message {
+	if current_personality == new_personality {
 		let _ = interaction_reply(
 			context,
 			interaction,
-			"Your system message is already set to that.",
+			"The personality is already set to that.",
 			true,
 		)
 		.await;
 		return Ok(());
 	}
-	let name = new_system_message.as_ref().map(|message| message.name());
-	set_system_message(executor, interaction.user.id, new_system_message).await;
+	let name = new_personality
+		.as_ref()
+		.map(|personality| personality.name());
+	set_personality(executor, interaction.user.id, new_personality).await;
 	let output = match name {
-		Some(name) => format!("System message for future new conversations set to {name}."),
-		None => String::from("System message for future new conversations reset to default."),
+		Some(name) => format!("Personality for future new conversations set to {name}."),
+		None => String::from("Personality for future new conversations reset to default."),
 	};
 	let _ = interaction_reply(context, interaction, output, true).await;
 	Ok(())
 }
 
-pub fn register_set_system_message() -> CreateCommand {
+pub fn register_set_personality() -> CreateCommand {
 	CreateCommand::new("personality")
 		.description("Sets (or unsets) the personality for new conversations started by you.")
 		.add_option(

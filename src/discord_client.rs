@@ -2,7 +2,9 @@ use itertools::Itertools;
 use serenity::{async_trait, model::prelude::*, prelude::*};
 use sqlx::{Pool, Sqlite};
 
-use crate::{allowances, chatgpt::Chatgpt, one_off_response, user_settings};
+use crate::{
+	allowances, chatgpt::Chatgpt, config::SystemMessages, one_off_response, user_settings,
+};
 
 /// If there is a mention on either end of the string, removes it and trims. Removes only one mention.
 fn strip_mention(text: String, mentions: &[String]) -> String {
@@ -34,17 +36,24 @@ async fn get_referenced_contents(
 pub struct DiscordEventHandler {
 	database: Pool<Sqlite>,
 	chatgpt: Chatgpt,
+	system_messages: SystemMessages,
 	mentions: [String; 2],
 }
 
 impl DiscordEventHandler {
-	pub fn new(database: Pool<Sqlite>, chatgpt: Chatgpt, own_user_id: UserId) -> Self {
+	pub fn new(
+		database: Pool<Sqlite>,
+		chatgpt: Chatgpt,
+		system_messages: SystemMessages,
+		own_user_id: UserId,
+	) -> Self {
 		let mention = format!("<@{}>", own_user_id.get());
 		let mention_nick = format!("<@!{}>", own_user_id.get());
 		let mentions = [mention, mention_nick];
 		Self {
 			database,
 			chatgpt,
+			system_messages,
 			mentions,
 		}
 	}
@@ -96,7 +105,14 @@ impl DiscordEventHandler {
 		};
 
 		self.chatgpt
-			.query(&self.database, context, content, message, parent)
+			.query(
+				&self.database,
+				&self.system_messages,
+				context,
+				content,
+				message,
+				parent,
+			)
 			.await;
 	}
 }
@@ -133,7 +149,7 @@ impl EventHandler for DiscordEventHandler {
 					user_settings::command_set_gpt4(context, interaction, &self.database).await
 				}
 				"personality" => {
-					user_settings::command_set_system_message(context, interaction, &self.database)
+					user_settings::command_set_personality(context, interaction, &self.database)
 						.await
 				}
 				"gptdictionary" => {
@@ -141,6 +157,7 @@ impl EventHandler for DiscordEventHandler {
 						context,
 						interaction,
 						&self.chatgpt,
+						&self.system_messages,
 						&self.database,
 					)
 					.await
@@ -150,6 +167,7 @@ impl EventHandler for DiscordEventHandler {
 						context,
 						interaction,
 						&self.chatgpt,
+						&self.system_messages,
 						&self.database,
 					)
 					.await
@@ -172,7 +190,7 @@ impl EventHandler for DiscordEventHandler {
 						allowances::register(),
 						allowances::register_check_expenditure(),
 						user_settings::register_set_gpt4(),
-						user_settings::register_set_system_message(),
+						user_settings::register_set_personality(),
 						one_off_response::create_command_dictionary(),
 						one_off_response::create_command_judgment(),
 					];

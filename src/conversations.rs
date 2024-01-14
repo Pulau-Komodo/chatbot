@@ -10,8 +10,9 @@ use crate::{
 		spend_allowance,
 	},
 	chatgpt::{ChatMessage, Chatgpt, ChatgptModel},
-	response_styles::SystemMessage,
-	user_settings::{consume_model_setting, get_system_message},
+	config::SystemMessages,
+	response_styles::Personality,
+	user_settings::{consume_model_setting, get_user_personality},
 	util::format_chatgpt_message,
 };
 
@@ -24,6 +25,7 @@ impl Chatgpt {
 	pub async fn query(
 		&self,
 		executor: &Pool<Sqlite>,
+		system_messages: &SystemMessages,
 		context: Context,
 		input: String,
 		message: Message,
@@ -48,28 +50,30 @@ impl Chatgpt {
 			return;
 		}
 
-		let (history, system_message, system_message_was_set) = if let Some(parent_id) = parent_id {
-			let system_message = get_message_system_message(executor, parent_id).await;
-			let system_message_was_set = system_message.is_some();
-			let system_message = system_message.unwrap_or_default();
+		let (history, personality) = if let Some(parent_id) = parent_id {
+			let personality = get_message_personality(executor, parent_id)
+				.await
+				.unwrap_or_default();
+			let system_message = system_messages.personality_message(&personality);
 			let mut history =
-				get_history_from_database(executor, parent_id, system_message.text()).await;
+				get_history_from_database(executor, parent_id, system_message.to_string()).await;
 			if history.len() == 1 {
 				// Found no actual history, so ignore this message. This most typically happens when replying to a bot message that was not a GPT response, like an error message.
 				return;
 			}
 			history.push(ChatMessage::user(input.clone()));
-			(history, system_message, system_message_was_set)
+			(history, personality)
 		} else {
-			let system_message = get_system_message(executor, message.author.id).await;
-			let system_message_was_set = system_message.is_some();
-			let system_message = system_message.unwrap_or_default();
+			let personality = get_user_personality(executor, message.author.id)
+				.await
+				.unwrap_or_default();
+			let system_message = system_messages.personality_message(&personality);
 			let history = [
-				ChatMessage::system(system_message.text()),
+				ChatMessage::system(system_message.to_string()),
 				ChatMessage::user(input.clone()),
 			]
 			.to_vec();
-			(history, system_message, system_message_was_set)
+			(history, personality)
 		};
 
 		let model = consume_model_setting(executor, message.author.id)
@@ -97,7 +101,7 @@ impl Chatgpt {
 
 		let full_reply = format_chatgpt_message(
 			&response.message_choices[0],
-			system_message.emoji(),
+			personality.emoji(),
 			cost,
 			allowance,
 			(model != DEFAULT_MODEL).then_some(model),
@@ -105,7 +109,6 @@ impl Chatgpt {
 		let output = &response.message_choices[0].message.content;
 		let own_message = message.reply(context.http, full_reply).await.unwrap();
 
-		let system_message = system_message_was_set.then_some(system_message);
 		if let Some(parent_id) = parent_id {
 			store_child_message(
 				executor,
@@ -113,11 +116,11 @@ impl Chatgpt {
 				parent_id,
 				&input,
 				output,
-				system_message,
+				personality,
 			)
 			.await;
 		} else {
-			store_root_message(executor, own_message.id, &input, output, system_message).await;
+			store_root_message(executor, own_message.id, &input, output, personality).await;
 		}
 	}
 }
@@ -169,10 +172,10 @@ async fn get_history_from_database(
 		.collect()
 }
 
-async fn get_message_system_message(
+async fn get_message_personality(
 	executor: &Pool<Sqlite>,
 	parent: MessageId,
-) -> Option<SystemMessage> {
+) -> Option<Personality> {
 	let message_id = parent.get() as i64;
 	query!(
 		"
@@ -189,7 +192,7 @@ async fn get_message_system_message(
 	.await
 	.unwrap()
 	.and_then(|record| record.system_message)
-	.map(|message| SystemMessage::from_database_str(&message))
+	.map(|message| Personality::from_database_str(&message))
 }
 
 async fn store_root_message(
@@ -197,10 +200,10 @@ async fn store_root_message(
 	message: MessageId,
 	input: &str,
 	output: &str,
-	system_message: Option<SystemMessage>,
+	personality: Personality,
 ) {
 	let message_id = message.get() as i64;
-	let system_message = system_message.map(|message| message.to_database_string());
+	let system_message = personality.to_database_string();
 	query!(
 		"
 		INSERT INTO
@@ -224,11 +227,11 @@ async fn store_child_message(
 	parent: MessageId,
 	input: &str,
 	output: &str,
-	system_message: Option<SystemMessage>,
+	personality: Personality,
 ) {
 	let message_id = message.get() as i64;
 	let parent_id = parent.get() as i64;
-	let system_message = system_message.map(|message| message.to_database_string());
+	let system_message = personality.to_database_string();
 	query!(
 		"
 		INSERT INTO
