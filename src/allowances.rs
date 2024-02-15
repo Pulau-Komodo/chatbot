@@ -66,7 +66,7 @@ pub async fn check_allowance(
 /// Get the cost of a query in nanodollars.
 pub fn get_cost(input_tokens: u32, output_tokens: u32, model: ChatgptModel) -> u32 {
 	match model {
-		ChatgptModel::Gpt35Turbo => 1_500 * input_tokens + 2_000 * output_tokens,
+		ChatgptModel::Gpt35Turbo => 500 * input_tokens + 1_500 * output_tokens,
 		ChatgptModel::Gpt4 => 30_000 * input_tokens + 60_000 * output_tokens,
 		_ => unimplemented!("Other models are not suppported"),
 	}
