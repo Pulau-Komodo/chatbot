@@ -4,13 +4,16 @@ use serde::Deserialize;
 
 use crate::{
 	allowances::{DEFAULT_ACCRUAL_DAYS, DEFAULT_DAILY_ALLOWANCE},
+	chatgpt::ChatgptModel,
 	response_styles::Personality,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Config {
 	pub daily_allowance: u32,
 	pub accrual_days: f32,
+	pub default_model: ChatgptModel,
+	pub fancy_model: ChatgptModel,
 }
 
 impl Config {
@@ -24,6 +27,12 @@ impl From<PartialConfig> for Config {
 		Self {
 			daily_allowance: value.daily_allowance.unwrap_or(DEFAULT_DAILY_ALLOWANCE),
 			accrual_days: value.accrual_days.unwrap_or(DEFAULT_ACCRUAL_DAYS),
+			default_model: value
+				.default_model
+				.expect("Default model was not specified in config."),
+			fancy_model: value
+				.fancy_model
+				.expect("Fancy model was not specified in config."),
 		}
 	}
 }
@@ -32,6 +41,8 @@ impl From<PartialConfig> for Config {
 struct PartialConfig {
 	daily_allowance: Option<u32>,
 	accrual_days: Option<f32>,
+	default_model: Option<ChatgptModel>,
+	fancy_model: Option<ChatgptModel>,
 }
 
 impl PartialConfig {

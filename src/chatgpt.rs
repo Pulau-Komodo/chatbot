@@ -17,6 +17,8 @@ pub struct Chatgpt {
 	api_url: Url,
 	daily_allowance: u32,
 	accrual_days: f32,
+	default_model: ChatgptModel,
+	fancy_model: ChatgptModel,
 }
 
 impl Chatgpt {
@@ -44,6 +46,8 @@ impl Chatgpt {
 			api_url,
 			daily_allowance: config.daily_allowance,
 			accrual_days: config.accrual_days,
+			default_model: config.default_model,
+			fancy_model: config.fancy_model,
 		})
 	}
 
@@ -51,7 +55,7 @@ impl Chatgpt {
 	pub async fn send(
 		&self,
 		history: &[ChatMessage],
-		model: ChatgptModel,
+		model: &str,
 		temperature: f32,
 		max_tokens: u32,
 	) -> Result<CompletionResponse, String> {
@@ -59,7 +63,7 @@ impl Chatgpt {
 			.client
 			.post(self.api_url.clone())
 			.json(&CompletionRequest {
-				model: model.as_str(),
+				model,
 				messages: history,
 				stream: false,
 				temperature,
@@ -101,74 +105,37 @@ impl Chatgpt {
 	pub fn accrual_days(&self) -> f32 {
 		self.accrual_days
 	}
-}
-
-/// The engine version for ChatGPT
-#[derive(Debug, Default, Copy, Clone, PartialEq, PartialOrd)]
-#[allow(non_camel_case_types)]
-pub enum ChatgptModel {
-	/// Standard engine: `gpt-3.5-turbo`
-	#[default]
-	Gpt35Turbo,
-	/// Different version of standard engine: `gpt-3.5-turbo-0301`
-	_Gpt35Turbo_0301,
-	/// Base GPT-4 model: `gpt-4`
-	Gpt4,
-	/// Version of GPT-4, able to remember 32,000 tokens: `gpt-4-32k`
-	_Gpt4_32k,
-	/// Different version of GPT-4: `gpt-4-0314`
-	_Gpt4_0314,
-	/// Different version of GPT-4, able to remember 32,000 tokens: `gpt-4-32k-0314`
-	_Gpt4_32k_0314,
-	/// Custom (or new/unimplemented) version of ChatGPT
-	_Custom(&'static str),
-}
-
-impl TryInto<ChatgptModel> for String {
-	type Error = ();
-
-	fn try_into(self) -> Result<ChatgptModel, Self::Error> {
-		let model = match self.as_str() {
-			"gpt-3.5-turbo" => ChatgptModel::Gpt35Turbo,
-			"gpt-3.5-turbo-030" => ChatgptModel::_Gpt35Turbo_0301,
-			"gpt-4" => ChatgptModel::Gpt4,
-			"gpt-4-32k" => ChatgptModel::_Gpt4_32k,
-			"gpt-4-0314" => ChatgptModel::_Gpt4_0314,
-			"gpt-4-32k-0314" => ChatgptModel::_Gpt4_32k_0314,
-			_ => return Err(()),
-		};
-		Ok(model)
+	pub fn get_model_by_name<'l>(&'l self, name: &str) -> Option<&'l ChatgptModel> {
+		[&self.default_model, &self.fancy_model]
+			.iter()
+			.find(|model| model.name() == name)
+			.copied()
+	}
+	pub fn default_model(&self) -> &ChatgptModel {
+		&self.default_model
 	}
 }
 
-impl Display for ChatgptModel {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.write_str(self.as_str())
-	}
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChatgptModel {
+	name: String,
+	friendly_name: String,
+	input_cost: u32,
+	output_cost: u32,
 }
 
 impl ChatgptModel {
-	pub fn as_str(&self) -> &'static str {
-		match self {
-			Self::Gpt35Turbo => "gpt-3.5-turbo",
-			Self::_Gpt35Turbo_0301 => "gpt-3.5-turbo-0301",
-			Self::Gpt4 => "gpt-4",
-			Self::_Gpt4_32k => "gpt-4-32k",
-			Self::_Gpt4_0314 => "gpt-4-0314",
-			Self::_Gpt4_32k_0314 => "gpt-4-32k-0314",
-			Self::_Custom(custom) => custom,
-		}
+	/// Name as used by the API and the database.
+	pub fn name(&self) -> &str {
+		&self.name
 	}
-	pub fn friendly_str(&self) -> &'static str {
-		match self {
-			Self::Gpt35Turbo => "GPT-3.5 Turbo",
-			Self::_Gpt35Turbo_0301 => "GPT-3.5 Turbo 0301",
-			Self::Gpt4 => "GPT-4",
-			Self::_Gpt4_32k => "GPT-4 32k context",
-			Self::_Gpt4_0314 => "GPT-4 0314",
-			Self::_Gpt4_32k_0314 => "GPT-4 32k context 0314",
-			Self::_Custom(custom) => custom,
-		}
+	/// Name to display to users.
+	pub fn friendly_name(&self) -> &str {
+		&self.friendly_name
+	}
+	/// Get the cost of a query in nanodollars.
+	pub fn get_cost(&self, input_tokens: u32, output_tokens: u32) -> u32 {
+		self.input_cost * input_tokens + self.output_cost * output_tokens
 	}
 }
 

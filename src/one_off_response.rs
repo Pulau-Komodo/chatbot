@@ -10,12 +10,11 @@ use crate::{
 		check_allowance, get_max_allowance_millidollars, nanodollars_to_millidollars,
 		spend_allowance,
 	},
-	chatgpt::{ChatMessage, Chatgpt, ChatgptModel},
+	chatgpt::{ChatMessage, Chatgpt},
 	config::SystemMessages,
 	util::{format_chatgpt_message, interaction_followup},
 };
 
-const MODEL: ChatgptModel = ChatgptModel::Gpt35Turbo;
 const TEMPERATURE: f32 = 0.5;
 const MAX_TOKENS: u32 = 400;
 
@@ -47,7 +46,7 @@ impl Chatgpt {
 					ChatMessage::system(system_message.to_string()),
 					ChatMessage::user(input.to_string()),
 				],
-				MODEL,
+				self.default_model().name(),
 				TEMPERATURE,
 				MAX_TOKENS,
 			)
@@ -58,7 +57,7 @@ impl Chatgpt {
 			user,
 			response.usage.prompt_tokens,
 			response.usage.completion_tokens,
-			MODEL,
+			self.default_model(),
 			self.daily_allowance(),
 			self.accrual_days(),
 		)

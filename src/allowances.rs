@@ -63,26 +63,17 @@ pub async fn check_allowance(
 	}
 }
 
-/// Get the cost of a query in nanodollars.
-pub fn get_cost(input_tokens: u32, output_tokens: u32, model: ChatgptModel) -> u32 {
-	match model {
-		ChatgptModel::Gpt35Turbo => 500 * input_tokens + 1_500 * output_tokens,
-		ChatgptModel::Gpt4 => 30_000 * input_tokens + 60_000 * output_tokens,
-		_ => unimplemented!("Other models are not suppported"),
-	}
-}
-
 /// Takes the specified number of tokens' worth from the user's allowance, then returns the new allowance and what the cost ended up being.
 pub async fn spend_allowance(
 	executor: &Pool<Sqlite>,
 	user: UserId,
 	input_tokens: u32,
 	output_tokens: u32,
-	model: ChatgptModel,
+	model: &ChatgptModel,
 	daily_allowance: u32,
 	accrual_days: f32,
 ) -> (i32, i32) {
-	let cost = get_cost(input_tokens, output_tokens, model);
+	let cost = model.get_cost(input_tokens, output_tokens);
 
 	let added_milliseconds = cost as u64 * MILLISECONDS_PER_DAY / daily_allowance as u64;
 	let time = time_to_full(executor, user).await.unwrap_or_else(Utc::now);
@@ -103,7 +94,7 @@ pub async fn spend_allowance(
 	.await
 	.unwrap();
 
-	let model = model.as_str();
+	let model = model.name();
 	query!(
 		"
 		INSERT INTO

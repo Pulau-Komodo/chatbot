@@ -5,11 +5,11 @@ use serenity::{
 };
 use sqlx::{query, Pool, Sqlite};
 
-use crate::{chatgpt::ChatgptModel, response_styles::Personality, util::interaction_reply};
+use crate::{chatgpt::Chatgpt, response_styles::Personality, util::interaction_reply};
 
 // Model
 
-async fn get_model(executor: &Pool<Sqlite>, user: UserId) -> Option<ChatgptModel> {
+async fn get_model(executor: &Pool<Sqlite>, user: UserId) -> Option<String> {
 	let user_id = user.get() as i64;
 	query!(
 		"
@@ -25,12 +25,11 @@ async fn get_model(executor: &Pool<Sqlite>, user: UserId) -> Option<ChatgptModel
 	.fetch_optional(executor)
 	.await
 	.unwrap()
-	.and_then(|record| record.model.map(|model| model.try_into().unwrap()))
+	.and_then(|record| record.model)
 }
 
-async fn set_model(executor: &Pool<Sqlite>, user: UserId, model: Option<ChatgptModel>) {
+async fn set_model(executor: &Pool<Sqlite>, user: UserId, model: Option<&str>) {
 	let user_id = user.get() as i64;
-	let model = model.map(|model| model.as_str());
 	query!(
 		"
 		INSERT INTO
@@ -49,7 +48,7 @@ async fn set_model(executor: &Pool<Sqlite>, user: UserId, model: Option<ChatgptM
 	.unwrap();
 }
 
-pub async fn consume_model_setting(executor: &Pool<Sqlite>, user: UserId) -> Option<ChatgptModel> {
+pub async fn consume_model_setting(executor: &Pool<Sqlite>, user: UserId) -> Option<String> {
 	let model_setting = get_model(executor, user).await;
 	if model_setting.is_some() {
 		set_model(executor, user, None).await;
@@ -57,16 +56,24 @@ pub async fn consume_model_setting(executor: &Pool<Sqlite>, user: UserId) -> Opt
 	model_setting
 }
 
+/// Note that this feature is hardcoded to "gpt-4", in spite of the configurability of the model in config. Any actual change of the model name in config will currently break the feature.
+/// To do: fix this one way or the other.
 pub async fn command_set_gpt4(
 	context: Context,
 	interaction: CommandInteraction,
 	executor: &Pool<Sqlite>,
+	chatgpt: &Chatgpt,
 ) -> Result<(), ()> {
 	let current_model = get_model(executor, interaction.user.id).await;
-	let new_model = current_model.xor(Some(ChatgptModel::Gpt4));
-	set_model(executor, interaction.user.id, new_model).await;
+	let new_model = current_model.xor(Some(String::from("gpt-4")));
+	set_model(executor, interaction.user.id, new_model.as_deref()).await;
 	let output = match new_model {
-		Some(model) => format!("Model for the next message set to {}.", model),
+		Some(model) => {
+			let friendly_name = chatgpt
+				.get_model_by_name(&model)
+				.map_or(model.as_str(), |model| model.friendly_name());
+			format!("Model for the next message set to {}.", friendly_name)
+		}
 		None => String::from("Model reset to default."),
 	};
 	let _ = interaction_reply(context, interaction, output, true).await;

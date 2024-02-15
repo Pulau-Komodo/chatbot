@@ -9,14 +9,13 @@ use crate::{
 		check_allowance, get_max_allowance_millidollars, nanodollars_to_millidollars,
 		spend_allowance,
 	},
-	chatgpt::{ChatMessage, Chatgpt, ChatgptModel},
+	chatgpt::{ChatMessage, Chatgpt},
 	config::SystemMessages,
 	response_styles::Personality,
 	user_settings::{consume_model_setting, get_user_personality},
 	util::{format_chatgpt_message, reply},
 };
 
-const DEFAULT_MODEL: ChatgptModel = ChatgptModel::Gpt35Turbo;
 const TEMPERATURE: f32 = 0.5;
 const MAX_TOKENS: u32 = 400;
 
@@ -64,9 +63,19 @@ impl Chatgpt {
 
 		let model = consume_model_setting(executor, message.author.id)
 			.await
-			.unwrap_or(DEFAULT_MODEL);
+			.and_then(|name| {
+				let model = self.get_model_by_name(&name);
+				if model.is_none() {
+					println!("Warning: could not get model by name of {name}.");
+				}
+				model
+			})
+			.unwrap_or(self.default_model());
 
-		let response = match self.send(&history, model, TEMPERATURE, MAX_TOKENS).await {
+		let response = match self
+			.send(&history, model.name(), TEMPERATURE, MAX_TOKENS)
+			.await
+		{
 			Ok(response) => response,
 			Err(error_message) => {
 				message.reply(context.http, error_message).await.unwrap();
@@ -90,7 +99,7 @@ impl Chatgpt {
 			personality.emoji(),
 			cost,
 			allowance,
-			(model != DEFAULT_MODEL).then_some(model),
+			(model.name() != self.default_model().name()).then_some(model),
 		);
 		let output = &response.message_choices[0].message.content;
 		let own_message = reply(message, &context.http, full_reply).await.unwrap();

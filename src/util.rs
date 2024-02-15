@@ -112,7 +112,7 @@ pub fn format_chatgpt_message(
 	emoji: &str,
 	cost: i32,
 	allowance: i32,
-	model: Option<ChatgptModel>,
+	model: Option<&ChatgptModel>,
 ) -> String {
 	let output = &response.message.content;
 	let ending = ending_from_finish_reason(&response.finish_reason);
@@ -126,7 +126,7 @@ pub fn format_chatgpt_message(
 			ending,
 			cost,
 			allowance,
-			model.friendly_str(),
+			model.friendly_name(),
 		)
 	} else {
 		format!(

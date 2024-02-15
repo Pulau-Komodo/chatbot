@@ -146,7 +146,13 @@ impl EventHandler for DiscordEventHandler {
 					allowances::command_expenditure(context, interaction, &self.database).await
 				}
 				"gpt4" => {
-					user_settings::command_set_gpt4(context, interaction, &self.database).await
+					user_settings::command_set_gpt4(
+						context,
+						interaction,
+						&self.database,
+						&self.chatgpt,
+					)
+					.await
 				}
 				"personality" => {
 					user_settings::command_set_personality(context, interaction, &self.database)
