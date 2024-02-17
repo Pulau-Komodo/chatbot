@@ -13,7 +13,7 @@ pub struct Config {
 	pub daily_allowance: u32,
 	pub accrual_days: f32,
 	pub default_model: ChatgptModel,
-	pub fancy_model: ChatgptModel,
+	pub fancier_model: ChatgptModel,
 }
 
 impl Config {
@@ -30,9 +30,9 @@ impl From<PartialConfig> for Config {
 			default_model: value
 				.default_model
 				.expect("Default model was not specified in config."),
-			fancy_model: value
-				.fancy_model
-				.expect("Fancy model was not specified in config."),
+			fancier_model: value
+				.fancier_model
+				.expect("Fancier model was not specified in config."),
 		}
 	}
 }
@@ -42,7 +42,7 @@ struct PartialConfig {
 	daily_allowance: Option<u32>,
 	accrual_days: Option<f32>,
 	default_model: Option<ChatgptModel>,
-	fancy_model: Option<ChatgptModel>,
+	fancier_model: Option<ChatgptModel>,
 }
 
 impl PartialConfig {

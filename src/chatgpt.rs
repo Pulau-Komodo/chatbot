@@ -18,7 +18,7 @@ pub struct Chatgpt {
 	daily_allowance: u32,
 	accrual_days: f32,
 	default_model: ChatgptModel,
-	fancy_model: ChatgptModel,
+	fancier_model: ChatgptModel,
 }
 
 impl Chatgpt {
@@ -47,7 +47,7 @@ impl Chatgpt {
 			daily_allowance: config.daily_allowance,
 			accrual_days: config.accrual_days,
 			default_model: config.default_model,
-			fancy_model: config.fancy_model,
+			fancier_model: config.fancier_model,
 		})
 	}
 
@@ -106,7 +106,7 @@ impl Chatgpt {
 		self.accrual_days
 	}
 	pub fn get_model_by_name<'l>(&'l self, name: &str) -> Option<&'l ChatgptModel> {
-		[&self.default_model, &self.fancy_model]
+		[&self.default_model, &self.fancier_model]
 			.iter()
 			.find(|model| model.name() == name)
 			.copied()
