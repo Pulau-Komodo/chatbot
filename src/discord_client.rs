@@ -191,16 +191,16 @@ impl EventHandler for DiscordEventHandler {
 		let arg = std::env::args().nth(1);
 		if let Some(arg) = arg {
 			if &arg == "register" {
+				let commands = vec![
+					allowances::register(),
+					allowances::register_check_expenditure(),
+					user_settings::register_set_gpt4(),
+					user_settings::register_set_personality(),
+					one_off_response::create_command_dictionary(),
+					one_off_response::create_command_judgment(),
+				];
 				for guild in context.cache.guilds() {
-					let commands = vec![
-						allowances::register(),
-						allowances::register_check_expenditure(),
-						user_settings::register_set_gpt4(),
-						user_settings::register_set_personality(),
-						one_off_response::create_command_dictionary(),
-						one_off_response::create_command_judgment(),
-					];
-					let commands = guild.set_commands(&context.http, commands).await.unwrap();
+					let commands = guild.set_commands(&context.http, commands.clone()).await.unwrap();
 					let command_names = commands.into_iter().map(|command| command.name).join(", ");
 					println!(
 						"I now have the following guild slash commands in guild {}: {}",
