@@ -18,7 +18,7 @@ pub struct Chatgpt {
 	daily_allowance: u32,
 	accrual_days: f32,
 	default_model: ChatgptModel,
-	fancier_model: ChatgptModel,
+	models: Vec<ChatgptModel>,
 }
 
 impl Chatgpt {
@@ -47,7 +47,7 @@ impl Chatgpt {
 			daily_allowance: config.daily_allowance,
 			accrual_days: config.accrual_days,
 			default_model: config.default_model,
-			fancier_model: config.fancier_model,
+			models: config.models,
 		})
 	}
 
@@ -106,17 +106,21 @@ impl Chatgpt {
 		self.accrual_days
 	}
 	pub fn get_model_by_name<'l>(&'l self, name: &str) -> Option<&'l ChatgptModel> {
-		[&self.default_model, &self.fancier_model]
-			.iter()
+		[&self.default_model]
+			.into_iter()
+			.chain(&self.models)
 			.find(|model| model.name() == name)
-			.copied()
 	}
 	pub fn default_model(&self) -> &ChatgptModel {
 		&self.default_model
 	}
+	/// The available models, excluding default.
+	pub fn models(&self) -> &Vec<ChatgptModel> {
+		&self.models
+	}
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct ChatgptModel {
 	name: String,
 	friendly_name: String,
@@ -136,6 +140,14 @@ impl ChatgptModel {
 	/// Get the cost of a query in nanodollars.
 	pub fn get_cost(&self, input_tokens: u32, output_tokens: u32) -> u32 {
 		self.input_cost * input_tokens + self.output_cost * output_tokens
+	}
+	/// Get a description of the cost of this model.
+	pub fn get_cost_description(&self) -> String {
+		format!(
+			"{}$ per 1M input tokens, {}$ per 1M output tokens",
+			self.input_cost as f32 / 1000.0,
+			self.output_cost as f32 / 1000.0
+		)
 	}
 }
 

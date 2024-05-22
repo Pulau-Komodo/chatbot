@@ -56,34 +56,65 @@ pub async fn consume_model_setting(executor: &Pool<Sqlite>, user: UserId) -> Opt
 	model_setting
 }
 
-/// Note that this feature is hardcoded to "gpt-4", in spite of the configurability of the model in config. Any actual change of the model name in config will currently break the feature.
-/// To do: fix this one way or the other.
-pub async fn command_set_gpt4(
+/// Set the model to be used for a single response.
+pub async fn command_set_model(
 	context: Context,
 	interaction: CommandInteraction,
 	executor: &Pool<Sqlite>,
 	chatgpt: &Chatgpt,
 ) -> Result<(), ()> {
-	let current_model = get_model(executor, interaction.user.id).await;
-	let new_model = current_model.xor(Some(String::from("gpt-4")));
-	set_model(executor, interaction.user.id, new_model.as_deref()).await;
-	let output = match new_model {
-		Some(model) => {
-			let friendly_name = chatgpt
-				.get_model_by_name(&model)
-				.map_or(model.as_str(), |model| model.friendly_name());
-			format!("Model for the next message set to {}.", friendly_name)
+	let current_model_name = get_model(executor, interaction.user.id)
+		.await
+		.unwrap_or(chatgpt.default_model().name().to_string());
+	let new_model_name = interaction
+		.data
+		.options
+		.first()
+		.unwrap()
+		.value
+		.as_str()
+		.unwrap();
+	let new_model = chatgpt.get_model_by_name(new_model_name).unwrap(); // To do: handle this more gracefully. It will panic if the database still has some model that later became unsupported.
+	let output = if current_model_name == new_model_name {
+		format!(
+			"Model was already set to {} ({}).",
+			new_model.friendly_name(),
+			new_model.get_cost_description()
+		)
+	} else {
+		if new_model == chatgpt.default_model() {
+			set_model(executor, interaction.user.id, None).await;
+		} else {
+			set_model(executor, interaction.user.id, Some(new_model.name())).await;
 		}
-		None => String::from("Model reset to default."),
+		format!(
+			"Model for your next prompt set to {} ({}).",
+			new_model.friendly_name(),
+			new_model.get_cost_description()
+		)
 	};
 	let _ = interaction_reply(context, interaction, output, true).await;
 	Ok(())
 }
 
-pub fn register_set_gpt4() -> CreateCommand {
-	CreateCommand::new("gpt4").description(
-		"Sets (or unsets) your next prompt to use GPT-4, a fancier model with 20 to 30 times the cost.",
+pub fn register_set_model(chatgpt: &Chatgpt) -> CreateCommand {
+	let mut model_option = CreateCommandOption::new(
+		CommandOptionType::String,
+		"model",
+		"The model to use for your next prompt.",
 	)
+	.required(true)
+	.add_string_choice(
+		format!("{} (default)", chatgpt.default_model().friendly_name()),
+		chatgpt.default_model().name(),
+	);
+	for model in chatgpt.models() {
+		model_option = model_option.add_string_choice(model.friendly_name(), model.name());
+	}
+
+	CreateCommand::new("model")
+		.description("Sets the model to use for your next prompt.")
+		.add_option(model_option)
 }
 
 // Personality
