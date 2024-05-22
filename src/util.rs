@@ -116,8 +116,8 @@ pub fn format_chatgpt_message(
 ) -> String {
 	let output = &response.message.content;
 	let ending = ending_from_finish_reason(&response.finish_reason);
-	let cost = nanodollars_to_millidollars(cost);
-	let allowance = nanodollars_to_millidollars(allowance);
+	let cost = nanodollars_to_millidollars(cost as f32);
+	let allowance = nanodollars_to_millidollars(allowance as f32);
 	if let Some(model) = model {
 		format!(
 			"{} {}{} (-{} m$, {} m$) ({})",

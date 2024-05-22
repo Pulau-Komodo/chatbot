@@ -42,7 +42,7 @@ impl Chatgpt {
 		if allowance <= 0 {
 			let reply = format!(
 				"You are out of allowance. ({}m$/{}m$)",
-				nanodollars_to_millidollars(allowance),
+				nanodollars_to_millidollars(allowance as f32),
 				max_millidollars
 			);
 			message.reply(context.http, reply).await.unwrap();

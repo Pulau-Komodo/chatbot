@@ -35,7 +35,7 @@ impl Chatgpt {
 		if allowance <= 0 {
 			return Err(format!(
 				"You are out of allowance. ({}m$/{}m$)",
-				nanodollars_to_millidollars(allowance),
+				nanodollars_to_millidollars(allowance as f32),
 				max_allowance
 			));
 		}
