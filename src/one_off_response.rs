@@ -12,6 +12,7 @@ use crate::{
 	},
 	chatgpt::{ChatMessage, Chatgpt},
 	config::SystemMessages,
+	user_settings::consume_model_setting,
 	util::{format_chatgpt_message, interaction_followup},
 };
 
@@ -39,6 +40,10 @@ impl Chatgpt {
 				max_allowance
 			));
 		}
+		let model = consume_model_setting(executor, user)
+			.await
+			.and_then(|name| self.get_model_by_name(&name))
+			.unwrap_or(self.default_model());
 
 		let response = self
 			.send(
@@ -46,7 +51,7 @@ impl Chatgpt {
 					ChatMessage::system(system_message.to_string()),
 					ChatMessage::user(input.to_string()),
 				],
-				self.default_model().name(),
+				model.name(),
 				TEMPERATURE,
 				MAX_TOKENS,
 			)
@@ -57,7 +62,7 @@ impl Chatgpt {
 			user,
 			response.usage.prompt_tokens,
 			response.usage.completion_tokens,
-			self.default_model(),
+			model,
 			self.daily_allowance(),
 			self.accrual_days(),
 		)
@@ -68,7 +73,7 @@ impl Chatgpt {
 			emoji,
 			cost,
 			allowance,
-			None,
+			(self.default_model() != model).then_some(model),
 		))
 	}
 }
