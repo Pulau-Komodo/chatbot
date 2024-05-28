@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use serenity::{
 	all::{CommandInteraction, CommandOptionType, UserId},
 	builder::{CreateCommand, CreateCommandOption},
@@ -11,13 +12,57 @@ use crate::{
 		spend_allowance,
 	},
 	chatgpt::{ChatMessage, Chatgpt},
-	config::SystemMessages,
 	user_settings::consume_model_setting,
 	util::{format_chatgpt_message, interaction_followup},
 };
 
 const TEMPERATURE: f32 = 0.5;
 const MAX_TOKENS: u32 = 400;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OneOffCommand {
+	name: String,
+	emoji: String,
+	description: String,
+	argument: String,
+	argument_description: String,
+	system_message: String,
+}
+
+impl OneOffCommand {
+	pub fn name(&self) -> &str {
+		&self.name
+	}
+	pub fn create(&self) -> CreateCommand {
+		CreateCommand::new(&self.name)
+			.description(&self.description)
+			.add_option(
+				CreateCommandOption::new(
+					CommandOptionType::String,
+					&self.argument,
+					&self.argument_description,
+				)
+				.required(true),
+			)
+	}
+	pub async fn handle(
+		&self,
+		context: Context,
+		interaction: CommandInteraction,
+		chatgpt: &Chatgpt,
+		executor: &Pool<Sqlite>,
+	) -> Result<(), ()> {
+		single_text_input_with_system_message(
+			context,
+			interaction,
+			chatgpt,
+			executor,
+			&self.emoji,
+			&self.system_message,
+		)
+		.await
+	}
+}
 
 impl Chatgpt {
 	/// An OK result is a success response from the ChatGPT API. An error can be an error response from the API or an error before even sending to the API.
@@ -109,66 +154,4 @@ async fn single_text_input_with_system_message(
 	};
 	let _ = interaction_followup(context, interaction, response, false).await;
 	Ok(())
-}
-
-pub async fn command_dictionary(
-	context: Context,
-	interaction: CommandInteraction,
-	chatgpt: &Chatgpt,
-	system_messages: &SystemMessages,
-	executor: &Pool<Sqlite>,
-) -> Result<(), ()> {
-	single_text_input_with_system_message(
-		context,
-		interaction,
-		chatgpt,
-		executor,
-		"📖",
-		&system_messages.dictionary,
-	)
-	.await
-}
-
-pub fn create_command_dictionary() -> CreateCommand {
-	CreateCommand::new("gptdictionary")
-		.description("Provides a dictionary entry for the given term.")
-		.add_option(
-			CreateCommandOption::new(
-				CommandOptionType::String,
-				"term",
-				"The term to get a dictionary entry for.",
-			)
-			.required(true),
-		)
-}
-
-pub async fn command_judgment(
-	context: Context,
-	interaction: CommandInteraction,
-	chatgpt: &Chatgpt,
-	system_messages: &SystemMessages,
-	executor: &Pool<Sqlite>,
-) -> Result<(), ()> {
-	single_text_input_with_system_message(
-		context,
-		interaction,
-		chatgpt,
-		executor,
-		"👨‍⚖️",
-		&system_messages.judgment,
-	)
-	.await
-}
-
-pub fn create_command_judgment() -> CreateCommand {
-	CreateCommand::new("judgment")
-		.description("Judges the specified crime.")
-		.add_option(
-			CreateCommandOption::new(
-				CommandOptionType::String,
-				"crime",
-				"The crime to have judged.",
-			)
-			.required(true),
-		)
 }

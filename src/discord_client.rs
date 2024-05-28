@@ -2,9 +2,7 @@ use itertools::Itertools;
 use serenity::{async_trait, model::prelude::*, prelude::*};
 use sqlx::{Pool, Sqlite};
 
-use crate::{
-	allowances, chatgpt::Chatgpt, config::SystemMessages, one_off_response, user_settings,
-};
+use crate::{allowances, chatgpt::Chatgpt, user_settings};
 
 /// If there is a mention on either end of the string, removes it and trims. Removes only one mention.
 fn strip_mention(text: String, mentions: &[String]) -> String {
@@ -36,24 +34,17 @@ async fn get_referenced_contents(
 pub struct DiscordEventHandler {
 	database: Pool<Sqlite>,
 	chatgpt: Chatgpt,
-	system_messages: SystemMessages,
 	mentions: [String; 2],
 }
 
 impl DiscordEventHandler {
-	pub fn new(
-		database: Pool<Sqlite>,
-		chatgpt: Chatgpt,
-		system_messages: SystemMessages,
-		own_user_id: UserId,
-	) -> Self {
+	pub fn new(database: Pool<Sqlite>, chatgpt: Chatgpt, own_user_id: UserId) -> Self {
 		let mention = format!("<@{}>", own_user_id.get());
 		let mention_nick = format!("<@!{}>", own_user_id.get());
 		let mentions = [mention, mention_nick];
 		Self {
 			database,
 			chatgpt,
-			system_messages,
 			mentions,
 		}
 	}
@@ -105,14 +96,7 @@ impl DiscordEventHandler {
 		};
 
 		self.chatgpt
-			.query(
-				&self.database,
-				&self.system_messages,
-				context,
-				content,
-				message,
-				parent,
-			)
+			.query(&self.database, context, content, message, parent)
 			.await;
 	}
 }
@@ -158,29 +142,15 @@ impl EventHandler for DiscordEventHandler {
 					user_settings::command_set_personality(context, interaction, &self.database)
 						.await
 				}
-				"gptdictionary" => {
-					one_off_response::command_dictionary(
-						context,
-						interaction,
-						&self.chatgpt,
-						&self.system_messages,
-						&self.database,
-					)
-					.await
-				}
-				"judgment" => {
-					one_off_response::command_judgment(
-						context,
-						interaction,
-						&self.chatgpt,
-						&self.system_messages,
-						&self.database,
-					)
-					.await
-				}
 				name => {
-					eprintln!("Received unknown command: {}", name);
-					Err(())
+					if let Some(one_off) = self.chatgpt.get_one_off_by_name(name) {
+						one_off
+							.handle(context, interaction, &self.chatgpt, &self.database)
+							.await
+					} else {
+						eprintln!("Received unknown command: {}", name);
+						Err(())
+					}
 				}
 			};
 		}
@@ -191,14 +161,27 @@ impl EventHandler for DiscordEventHandler {
 		let arg = std::env::args().nth(1);
 		if let Some(arg) = arg {
 			if &arg == "register" {
-				let commands = vec![
+				let mut command_count = 2 + self.chatgpt.one_offs().len();
+				if !self.chatgpt.models().is_empty() {
+					command_count += 1;
+				}
+				if self.chatgpt.personalities().len() > 1 {
+					command_count += 1;
+				}
+				let mut commands = Vec::with_capacity(command_count);
+				commands.extend([
 					allowances::register(),
 					allowances::register_check_expenditure(),
-					user_settings::register_set_model(&self.chatgpt),
-					user_settings::register_set_personality(),
-					one_off_response::create_command_dictionary(),
-					one_off_response::create_command_judgment(),
-				];
+				]);
+				if !self.chatgpt.models().is_empty() {
+					commands.push(user_settings::register_set_model(&self.chatgpt));
+				}
+				if self.chatgpt.personalities().len() > 1 {
+					commands.push(user_settings::register_set_personality(&self.chatgpt));
+				}
+				for one_off in self.chatgpt.one_offs() {
+					commands.push(one_off.create());
+				}
 				for guild in context.cache.guilds() {
 					let commands = guild
 						.set_commands(&context.http, commands.clone())

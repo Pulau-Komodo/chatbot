@@ -5,6 +5,7 @@ use serde::Deserialize;
 use crate::{
 	allowances::{DEFAULT_ACCRUAL_DAYS, DEFAULT_DAILY_ALLOWANCE},
 	chatgpt::ChatgptModel,
+	one_off_response::OneOffCommand,
 	response_styles::Personality,
 };
 
@@ -14,6 +15,8 @@ pub struct Config {
 	pub accrual_days: f32,
 	pub default_model: ChatgptModel,
 	pub models: Vec<ChatgptModel>,
+	pub personalities: Vec<Personality>,
+	pub one_offs: Vec<OneOffCommand>,
 }
 
 impl Config {
@@ -24,14 +27,22 @@ impl Config {
 
 impl From<PartialConfig> for Config {
 	fn from(value: PartialConfig) -> Self {
-		Self {
+		let config = Self {
 			daily_allowance: value.daily_allowance.unwrap_or(DEFAULT_DAILY_ALLOWANCE),
 			accrual_days: value.accrual_days.unwrap_or(DEFAULT_ACCRUAL_DAYS),
 			default_model: value
 				.default_model
 				.expect("Default model was not specified in config."),
 			models: value.models.unwrap_or_default(),
+			personalities: value
+				.personalities
+				.expect("There needs to be at least one personality."),
+			one_offs: value.one_offs.unwrap_or_default(),
+		};
+		if config.personalities.is_empty() {
+			panic!("There needs to be at least one personality.");
 		}
+		config
 	}
 }
 
@@ -41,39 +52,13 @@ struct PartialConfig {
 	accrual_days: Option<f32>,
 	default_model: Option<ChatgptModel>,
 	models: Option<Vec<ChatgptModel>>,
+	personalities: Option<Vec<Personality>>,
+	one_offs: Option<Vec<OneOffCommand>>,
 }
 
 impl PartialConfig {
 	fn from_file<P: AsRef<Path>>(path: P) -> Self {
 		toml::from_str(&fs::read_to_string(path).expect("Failed to read config file."))
 			.expect("Failed to parse config file.")
-	}
-}
-
-/// Stores all the system messages used by the application.
-#[derive(Deserialize)]
-pub struct SystemMessages {
-	robotic: String,
-	friendly: String,
-	poetic: String,
-	villainous: String,
-	pub dictionary: String,
-	pub judgment: String,
-}
-
-impl SystemMessages {
-	pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
-		toml::from_str(&fs::read_to_string(path).expect("Failed to read system messages file."))
-			.expect("Failed to parse system messages file.")
-	}
-	/// Retrieve the system message used for a specific personality.
-	pub fn personality_message<'s>(&'s self, personality: &'s Personality) -> &'s str {
-		match personality {
-			Personality::Robotic => &self.robotic,
-			Personality::Friendly => &self.friendly,
-			Personality::Poetic => &self.poetic,
-			Personality::Villainous => &self.villainous,
-			Personality::Custom(text) => text,
-		}
 	}
 }

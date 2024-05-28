@@ -5,7 +5,7 @@ use serenity::{
 };
 use sqlx::{query, Pool, Sqlite};
 
-use crate::{chatgpt::Chatgpt, response_styles::Personality, util::interaction_reply};
+use crate::{chatgpt::Chatgpt, util::interaction_reply};
 
 // Model
 
@@ -120,7 +120,7 @@ pub fn register_set_model(chatgpt: &Chatgpt) -> CreateCommand {
 // Personality
 
 /// Get the chat personality set for the specified user.
-pub async fn get_user_personality(executor: &Pool<Sqlite>, user: UserId) -> Option<Personality> {
+pub async fn get_user_personality(executor: &Pool<Sqlite>, user: UserId) -> Option<String> {
 	let user_id = user.get() as i64;
 	query!(
 		"
@@ -136,16 +136,11 @@ pub async fn get_user_personality(executor: &Pool<Sqlite>, user: UserId) -> Opti
 	.fetch_optional(executor)
 	.await
 	.unwrap()
-	.and_then(|record| {
-		record
-			.system_message
-			.map(|message| Personality::from_database_str(&message))
-	})
+	.and_then(|record| record.system_message)
 }
 
-async fn set_personality(executor: &Pool<Sqlite>, user: UserId, personality: Option<Personality>) {
+async fn set_personality(executor: &Pool<Sqlite>, user: UserId, personality: Option<&str>) {
 	let user_id = user.get() as i64;
-	let system_message = personality.map(|message| message.to_database_string());
 	query!(
 		"
 		INSERT INTO
@@ -157,7 +152,7 @@ async fn set_personality(executor: &Pool<Sqlite>, user: UserId, personality: Opt
 				system_message = excluded.system_message
 		",
 		user_id,
-		system_message,
+		personality,
 	)
 	.execute(executor)
 	.await
@@ -174,10 +169,9 @@ pub async fn command_set_personality(
 		.data
 		.options
 		.first()
-		.and_then(|option| option.value.as_str())
-		.map(Personality::from_database_str);
+		.and_then(|option| option.value.as_str());
 
-	if current_personality == new_personality {
+	if current_personality.as_deref() == new_personality {
 		let _ = interaction_reply(
 			context,
 			interaction,
@@ -187,11 +181,8 @@ pub async fn command_set_personality(
 		.await;
 		return Ok(());
 	}
-	let name = new_personality
-		.as_ref()
-		.map(|personality| personality.name());
 	set_personality(executor, interaction.user.id, new_personality).await;
-	let output = match name {
+	let output = match new_personality {
 		Some(name) => format!("Personality for future new conversations set to {name}."),
 		None => String::from("Personality for future new conversations reset to default."),
 	};
@@ -199,19 +190,19 @@ pub async fn command_set_personality(
 	Ok(())
 }
 
-pub fn register_set_personality() -> CreateCommand {
+pub fn register_set_personality(chatgpt: &Chatgpt) -> CreateCommand {
+	let mut personality_option = CreateCommandOption::new(
+		CommandOptionType::String,
+		"personality",
+		"The personality your new conversations will use.",
+	)
+	.required(true);
+	for personality in chatgpt.personalities() {
+		personality_option =
+			personality_option.add_string_choice(personality.name(), personality.name());
+	}
+
 	CreateCommand::new("personality")
 		.description("Sets (or unsets) the personality for new conversations started by you.")
-		.add_option(
-			CreateCommandOption::new(
-				CommandOptionType::String,
-				"personality",
-				"The personality your new conversations will use.",
-			)
-			.add_string_choice("robotic", "robotic")
-			.add_string_choice("friendly", "friendly")
-			.add_string_choice("poetic", "poetic")
-			.add_string_choice("villainous", "villainous")
-			.required(true),
-		)
+		.add_option(personality_option)
 }

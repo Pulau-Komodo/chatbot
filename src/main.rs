@@ -3,7 +3,7 @@
 use std::fs;
 
 use chatgpt::Chatgpt;
-use config::{Config, SystemMessages};
+use config::Config;
 use database::init_database;
 use discord_client::DiscordEventHandler;
 use serenity::{http::Http, prelude::GatewayIntents};
@@ -32,15 +32,13 @@ async fn main() {
 
 	let chatgpt = Chatgpt::new(chatgpt_api_key, None, config).unwrap();
 
-	let system_messages = SystemMessages::from_file("./system_messages.toml");
-
 	let my_id = Http::new(&discord_token)
 		.get_current_user()
 		.await
 		.unwrap()
 		.id;
 
-	let handler = DiscordEventHandler::new(db_pool, chatgpt, system_messages, my_id);
+	let handler = DiscordEventHandler::new(db_pool, chatgpt, my_id);
 	let mut client = serenity::Client::builder(
 		&discord_token,
 		GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT,

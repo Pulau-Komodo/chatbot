@@ -8,7 +8,7 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use crate::config::Config;
+use crate::{config::Config, one_off_response::OneOffCommand, response_styles::Personality};
 
 // The client that operates the ChatGPT API
 #[derive(Debug, Clone)]
@@ -19,6 +19,8 @@ pub struct Chatgpt {
 	accrual_days: f32,
 	default_model: ChatgptModel,
 	models: Vec<ChatgptModel>,
+	personalities: Vec<Personality>,
+	one_offs: Vec<OneOffCommand>,
 }
 
 impl Chatgpt {
@@ -48,6 +50,8 @@ impl Chatgpt {
 			accrual_days: config.accrual_days,
 			default_model: config.default_model,
 			models: config.models,
+			personalities: config.personalities,
+			one_offs: config.one_offs,
 		})
 	}
 
@@ -105,7 +109,7 @@ impl Chatgpt {
 	pub fn accrual_days(&self) -> f32 {
 		self.accrual_days
 	}
-	pub fn get_model_by_name<'l>(&'l self, name: &str) -> Option<&'l ChatgptModel> {
+	pub fn get_model_by_name(&self, name: &str) -> Option<&ChatgptModel> {
 		[&self.default_model]
 			.into_iter()
 			.chain(&self.models)
@@ -117,6 +121,23 @@ impl Chatgpt {
 	/// The available models, excluding default.
 	pub fn models(&self) -> &Vec<ChatgptModel> {
 		&self.models
+	}
+	pub fn get_personality_by_name(&self, name: &str) -> Option<&Personality> {
+		self.personalities
+			.iter()
+			.find(|personality| personality.name() == name)
+	}
+	pub fn default_personality(&self) -> &Personality {
+		self.personalities.first().unwrap() // There should always be at least one personality, enforced on creating `Config`.
+	}
+	pub fn personalities(&self) -> &Vec<Personality> {
+		&self.personalities
+	}
+	pub fn get_one_off_by_name(&self, name: &str) -> Option<&OneOffCommand> {
+		self.one_offs.iter().find(|one_off| one_off.name() == name)
+	}
+	pub fn one_offs(&self) -> &Vec<OneOffCommand> {
+		&self.one_offs
 	}
 }
 
