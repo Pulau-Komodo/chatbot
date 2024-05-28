@@ -203,6 +203,6 @@ pub fn register_set_personality(chatgpt: &Chatgpt) -> CreateCommand {
 	}
 
 	CreateCommand::new("personality")
-		.description("Sets (or unsets) the personality for new conversations started by you.")
+		.description("Sets the personality for new conversations started by you.")
 		.add_option(personality_option)
 }
