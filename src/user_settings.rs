@@ -198,8 +198,10 @@ pub fn register_set_personality(chatgpt: &Chatgpt) -> CreateCommand {
 	)
 	.required(true);
 	for personality in chatgpt.personalities() {
-		personality_option =
-			personality_option.add_string_choice(personality.name(), personality.name());
+		personality_option = personality_option.add_string_choice(
+			format!("{} {}", personality.name(), personality.emoji()),
+			personality.name(),
+		);
 	}
 
 	CreateCommand::new("personality")
