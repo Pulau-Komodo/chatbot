@@ -7,10 +7,7 @@ use serenity::{
 use sqlx::{Pool, Sqlite};
 
 use crate::{
-	allowances::{
-		check_allowance, get_max_allowance_millidollars, nanodollars_to_millidollars,
-		spend_allowance,
-	},
+	allowances::{allowance_and_max, spend_allowance},
 	chatgpt::{ChatMessage, Chatgpt},
 	user_settings::consume_model_setting,
 	util::{format_chatgpt_message, interaction_followup},
@@ -74,21 +71,30 @@ impl Chatgpt {
 		emoji: &str,
 		input: &str,
 	) -> Result<String, String> {
-		let allowance =
-			check_allowance(executor, user, self.daily_allowance(), self.accrual_days()).await;
-		let max_allowance =
-			get_max_allowance_millidollars(self.daily_allowance(), self.accrual_days()).await;
-		if allowance <= 0 {
+		let custom_authorization_header = self.custom_authorization_header(user);
+
+		let (allowance, max_allowance) = allowance_and_max(
+			executor,
+			user,
+			self.daily_allowance(),
+			self.accrual_days(),
+			custom_authorization_header.is_some(),
+		)
+		.await;
+		if allowance.is_out() {
 			return Err(format!(
-				"You are out of allowance. ({}m$/{}m$)",
-				nanodollars_to_millidollars(allowance as f32),
-				max_allowance
+				"You are out of allowance. ({}/{})",
+				allowance, max_allowance
 			));
 		}
+
 		let model = consume_model_setting(executor, user)
 			.await
 			.and_then(|name| self.get_model_by_name(&name))
 			.unwrap_or(self.default_model());
+
+		let authorization_header =
+			custom_authorization_header.unwrap_or(self.authorization_header());
 
 		let response = self
 			.send(
@@ -99,6 +105,7 @@ impl Chatgpt {
 				model.name(),
 				TEMPERATURE,
 				MAX_TOKENS,
+				authorization_header,
 			)
 			.await?;
 
@@ -110,6 +117,7 @@ impl Chatgpt {
 			model,
 			self.daily_allowance(),
 			self.accrual_days(),
+			custom_authorization_header.is_some(),
 		)
 		.await;
 

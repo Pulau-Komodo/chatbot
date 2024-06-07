@@ -10,7 +10,7 @@ use serenity::{
 };
 
 use crate::{
-	allowances::nanodollars_to_millidollars,
+	allowances::Allowance,
 	chatgpt::{ChatgptModel, MessageChoice},
 };
 
@@ -110,17 +110,15 @@ where
 pub fn format_chatgpt_message(
 	response: &MessageChoice,
 	emoji: &str,
-	cost: i32,
-	allowance: i32,
+	cost: Allowance,
+	allowance: Allowance,
 	model: Option<&ChatgptModel>,
 ) -> String {
 	let output = &response.message.content;
 	let ending = ending_from_finish_reason(&response.finish_reason);
-	let cost = nanodollars_to_millidollars(cost as f32);
-	let allowance = nanodollars_to_millidollars(allowance as f32);
 	if let Some(model) = model {
 		format!(
-			"{} {}{} (-{} m$, {} m$) ({})",
+			"{} {}{} (-{}, {}) ({})",
 			emoji,
 			output,
 			ending,
@@ -129,10 +127,7 @@ pub fn format_chatgpt_message(
 			model.friendly_name(),
 		)
 	} else {
-		format!(
-			"{} {}{} (-{} m$, {} m$)",
-			emoji, output, ending, cost, allowance,
-		)
+		format!("{} {}{} (-{}, {})", emoji, output, ending, cost, allowance,)
 	}
 }
 

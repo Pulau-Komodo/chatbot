@@ -2,19 +2,26 @@
 //! But I have completely gutted and refactored it, removing all the parts I don't use, and shaping it to a different interaction model, where no conversation is stored outside the database, and options are not stored with the client.
 
 use reqwest::{
-	header::{HeaderMap, HeaderValue, AUTHORIZATION},
+	header::{HeaderValue, AUTHORIZATION},
 	Url,
 };
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use serenity::all::UserId;
+use std::{collections::HashMap, fmt::Display};
 
-use crate::{config::Config, one_off_response::OneOffCommand, response_styles::Personality};
+use crate::{
+	config::{Config, CustomApiKeys},
+	one_off_response::OneOffCommand,
+	response_styles::Personality,
+};
 
 // The client that operates the ChatGPT API
 #[derive(Debug, Clone)]
 pub struct Chatgpt {
 	client: reqwest::Client,
 	api_url: Url,
+	authorization_header: HeaderValue,
+	custom_authorization_headers: HashMap<UserId, HeaderValue>,
 	daily_allowance: u32,
 	accrual_days: f32,
 	default_model: ChatgptModel,
@@ -27,25 +34,27 @@ impl Chatgpt {
 	/// Constructs a new ChatGPT API client with provided API key and URL.
 	///
 	/// `api_url` is the URL of the /v1/chat/completions endpoint. Can be used to set a proxy.
-	pub fn new<S>(api_key: S, api_url: Option<Url>, config: Config) -> Result<Self, ()>
+	pub fn new<S>(
+		api_key: S,
+		api_url: Option<Url>,
+		config: Config,
+		custom_api_keys: CustomApiKeys,
+	) -> Result<Self, ()>
 	where
 		S: Display,
 	{
 		let api_url = api_url
 			.unwrap_or_else(|| Url::parse("https://api.openai.com/v1/chat/completions").unwrap());
-		let mut headers = HeaderMap::new();
-		headers.insert(
-			AUTHORIZATION,
-			HeaderValue::from_bytes(format!("Bearer {api_key}").as_bytes()).unwrap(),
-		);
-		let client = reqwest::ClientBuilder::new()
-			.default_headers(headers)
-			.build()
-			.unwrap();
+
+		let authorization_header =
+			HeaderValue::from_bytes(format!("Bearer {api_key}").as_bytes()).unwrap();
+		let client = reqwest::Client::new();
 
 		Ok(Self {
 			client,
 			api_url,
+			authorization_header,
+			custom_authorization_headers: custom_api_keys.into_headers(),
 			daily_allowance: config.daily_allowance,
 			accrual_days: config.accrual_days,
 			default_model: config.default_model,
@@ -62,10 +71,12 @@ impl Chatgpt {
 		model: &str,
 		temperature: f32,
 		max_tokens: u32,
+		authorization_header: &HeaderValue,
 	) -> Result<CompletionResponse, String> {
 		let response: ServerResponse = self
 			.client
 			.post(self.api_url.clone())
+			.header(AUTHORIZATION, authorization_header)
 			.json(&CompletionRequest {
 				model,
 				messages: history,
@@ -102,6 +113,12 @@ impl Chatgpt {
 			}
 			ServerResponse::Completion(completion) => Ok(completion),
 		}
+	}
+	pub fn authorization_header(&self) -> &HeaderValue {
+		&self.authorization_header
+	}
+	pub fn custom_authorization_header(&self, user: UserId) -> Option<&HeaderValue> {
+		self.custom_authorization_headers.get(&user)
 	}
 	pub fn daily_allowance(&self) -> u32 {
 		self.daily_allowance

@@ -3,7 +3,7 @@
 use std::fs;
 
 use chatgpt::Chatgpt;
-use config::Config;
+use config::{Config, CustomApiKeys};
 use database::init_database;
 use discord_client::DiscordEventHandler;
 use serenity::{http::Http, prelude::GatewayIntents};
@@ -29,8 +29,9 @@ async fn main() {
 		fs::read_to_string("./gpt_api_key.txt").expect("Could not read GPT API key file");
 
 	let config = Config::from_file("./config.toml");
+	let custom_api_keys = CustomApiKeys::from_file("./custom_api_keys.toml");
 
-	let chatgpt = Chatgpt::new(chatgpt_api_key, None, config).unwrap();
+	let chatgpt = Chatgpt::new(chatgpt_api_key, None, config, custom_api_keys).unwrap();
 
 	let my_id = Http::new(&discord_token)
 		.get_current_user()
