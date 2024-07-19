@@ -9,7 +9,7 @@ use crate::{chatgpt::Chatgpt, util::interaction_reply};
 
 // Model
 
-async fn get_model(executor: &Pool<Sqlite>, user: UserId) -> Option<String> {
+pub async fn get_model_setting(executor: &Pool<Sqlite>, user: UserId) -> Option<String> {
 	let user_id = user.get() as i64;
 	query!(
 		"
@@ -48,22 +48,22 @@ async fn set_model(executor: &Pool<Sqlite>, user: UserId, model: Option<&str>) {
 	.unwrap();
 }
 
-pub async fn consume_model_setting(executor: &Pool<Sqlite>, user: UserId) -> Option<String> {
-	let model_setting = get_model(executor, user).await;
+pub async fn _consume_model_setting(executor: &Pool<Sqlite>, user: UserId) -> Option<String> {
+	let model_setting = get_model_setting(executor, user).await;
 	if model_setting.is_some() {
 		set_model(executor, user, None).await;
 	}
 	model_setting
 }
 
-/// Set the model to be used for a single response.
+/// Set the model to be used for responses.
 pub async fn command_set_model(
 	context: Context,
 	interaction: CommandInteraction,
 	executor: &Pool<Sqlite>,
 	chatgpt: &Chatgpt,
 ) -> Result<(), ()> {
-	let current_model_name = get_model(executor, interaction.user.id)
+	let current_model_name = get_model_setting(executor, interaction.user.id)
 		.await
 		.unwrap_or(chatgpt.default_model().name().to_string());
 	let new_model_name = interaction
@@ -88,7 +88,7 @@ pub async fn command_set_model(
 			set_model(executor, interaction.user.id, Some(new_model.name())).await;
 		}
 		format!(
-			"Model for your next prompt set to {} ({}).",
+			"Model for your future prompts set to {} ({}).",
 			new_model.friendly_name(),
 			new_model.get_cost_description()
 		)
@@ -101,7 +101,7 @@ pub fn register_set_model(chatgpt: &Chatgpt) -> CreateCommand {
 	let mut model_option = CreateCommandOption::new(
 		CommandOptionType::String,
 		"model",
-		"The model to use for your next prompt.",
+		"The model to use for your future prompts.",
 	)
 	.required(true)
 	.add_string_choice(
@@ -113,7 +113,7 @@ pub fn register_set_model(chatgpt: &Chatgpt) -> CreateCommand {
 	}
 
 	CreateCommand::new("model")
-		.description("Sets the model to use for your next prompt.")
+		.description("Sets the model to use for your future prompts.")
 		.add_option(model_option)
 }
 

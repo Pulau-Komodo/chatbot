@@ -8,7 +8,7 @@ use crate::{
 	allowances::{allowance_and_max, spend_allowance},
 	chatgpt::{ChatMessage, Chatgpt},
 	response_styles::Personality,
-	user_settings::{consume_model_setting, get_user_personality},
+	user_settings::{get_model_setting, get_user_personality},
 	util::{format_chatgpt_message, reply},
 };
 
@@ -57,7 +57,7 @@ impl Chatgpt {
 			self.start_conversation(executor, &message, &input).await
 		};
 
-		let model = consume_model_setting(executor, message.author.id)
+		let model = get_model_setting(executor, message.author.id)
 			.await
 			.and_then(|name| {
 				let model = self.get_model_by_name(&name);

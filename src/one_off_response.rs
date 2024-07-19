@@ -9,7 +9,7 @@ use sqlx::{Pool, Sqlite};
 use crate::{
 	allowances::{allowance_and_max, spend_allowance},
 	chatgpt::{ChatMessage, Chatgpt},
-	user_settings::consume_model_setting,
+	user_settings::get_model_setting,
 	util::{format_chatgpt_message, interaction_followup},
 };
 
@@ -88,7 +88,7 @@ impl Chatgpt {
 			));
 		}
 
-		let model = consume_model_setting(executor, user)
+		let model = get_model_setting(executor, user)
 			.await
 			.and_then(|name| self.get_model_by_name(&name))
 			.unwrap_or(self.default_model());
