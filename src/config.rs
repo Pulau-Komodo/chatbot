@@ -15,7 +15,6 @@ use crate::{
 pub struct Config {
 	pub daily_allowance: u32,
 	pub accrual_days: f32,
-	pub default_model: ChatgptModel,
 	pub models: Vec<ChatgptModel>,
 	pub personalities: Vec<Personality>,
 	pub one_offs: Vec<OneOffCommand>,
@@ -32,15 +31,15 @@ impl From<PartialConfig> for Config {
 		let config = Self {
 			daily_allowance: value.daily_allowance.unwrap_or(DEFAULT_DAILY_ALLOWANCE),
 			accrual_days: value.accrual_days.unwrap_or(DEFAULT_ACCRUAL_DAYS),
-			default_model: value
-				.default_model
-				.expect("Default model was not specified in config."),
-			models: value.models.unwrap_or_default(),
+			models: value.models.expect("There needs to be at least one model."),
 			personalities: value
 				.personalities
 				.expect("There needs to be at least one personality."),
 			one_offs: value.one_offs.unwrap_or_default(),
 		};
+		if config.models.is_empty() {
+			panic!("There needs to be at least one model.");
+		}
 		if config.personalities.is_empty() {
 			panic!("There needs to be at least one personality.");
 		}
@@ -52,7 +51,6 @@ impl From<PartialConfig> for Config {
 struct PartialConfig {
 	daily_allowance: Option<u32>,
 	accrual_days: Option<f32>,
-	default_model: Option<ChatgptModel>,
 	models: Option<Vec<ChatgptModel>>,
 	personalities: Option<Vec<Personality>>,
 	one_offs: Option<Vec<OneOffCommand>>,

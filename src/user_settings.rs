@@ -108,7 +108,7 @@ pub fn register_set_model(chatgpt: &Chatgpt) -> CreateCommand {
 		format!("{} (default)", chatgpt.default_model().friendly_name()),
 		chatgpt.default_model().name(),
 	);
-	for model in chatgpt.models() {
+	for model in &chatgpt.models()[1..] {
 		model_option = model_option.add_string_choice(model.friendly_name(), model.name());
 	}
 

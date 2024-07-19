@@ -24,7 +24,6 @@ pub struct Chatgpt {
 	custom_authorization_headers: HashMap<UserId, HeaderValue>,
 	daily_allowance: u32,
 	accrual_days: f32,
-	default_model: ChatgptModel,
 	models: Vec<ChatgptModel>,
 	personalities: Vec<Personality>,
 	one_offs: Vec<OneOffCommand>,
@@ -57,7 +56,6 @@ impl Chatgpt {
 			custom_authorization_headers: custom_api_keys.into_headers(),
 			daily_allowance: config.daily_allowance,
 			accrual_days: config.accrual_days,
-			default_model: config.default_model,
 			models: config.models,
 			personalities: config.personalities,
 			one_offs: config.one_offs,
@@ -127,13 +125,10 @@ impl Chatgpt {
 		self.accrual_days
 	}
 	pub fn get_model_by_name(&self, name: &str) -> Option<&ChatgptModel> {
-		[&self.default_model]
-			.into_iter()
-			.chain(&self.models)
-			.find(|model| model.name() == name)
+		self.models.iter().find(|model| model.name() == name)
 	}
 	pub fn default_model(&self) -> &ChatgptModel {
-		&self.default_model
+		self.models.first().unwrap() // There should always be at least one model, enforced on creating `Config`.
 	}
 	/// The available models, excluding default.
 	pub fn models(&self) -> &Vec<ChatgptModel> {
