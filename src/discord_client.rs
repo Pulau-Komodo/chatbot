@@ -110,7 +110,7 @@ impl DiscordEventHandler {
 impl EventHandler for DiscordEventHandler {
 	async fn message(&self, context: Context, message: Message) {
 		let own_id = context.cache.current_user().id;
-		if !message.is_own(&context.cache)
+		if message.author.id != own_id
 			&& message.mentions_user_id(own_id)
 			&& !message.content.is_empty()
 		{
