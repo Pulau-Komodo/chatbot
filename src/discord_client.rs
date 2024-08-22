@@ -5,13 +5,12 @@ use sqlx::{Pool, Sqlite};
 use crate::{allowances, chatgpt::Chatgpt, user_settings};
 
 /// If there is a mention on either end of the string, removes it and trims. Removes only one mention.
-fn strip_mention(text: String, mentions: &[String]) -> String {
-	let new_text = [str::strip_prefix, str::strip_suffix]
+fn strip_mention<'l>(text: &'l str, mentions: &[String]) -> Option<&'l str> {
+	[str::strip_prefix, str::strip_suffix]
 		.into_iter()
 		.cartesian_product(mentions)
-		.find_map(|(strip, mention)| strip(&text, mention))
-		.map(str::trim);
-	new_text.map(String::from).unwrap_or(text)
+		.find_map(|(strip, mention)| strip(text, mention))
+		.map(str::trim)
 }
 
 async fn get_referenced_contents(
@@ -62,22 +61,26 @@ impl DiscordEventHandler {
 			} else if let Some(referenced_contents) =
 				get_referenced_contents(&context.http, referenced).await
 			{
-				let mut text = strip_mention(content, &self.mentions);
+				let Some(text) = strip_mention(&content, &self.mentions) else {
+					// Pinged the bot but had no mention at either end, so don't take it as being addressed.
+					return;
+				};
 				if text.is_empty() {
 					// A message replying to something, but containing nothing but a mention to the bot
-					let referenced_contents = strip_mention(referenced_contents, &self.mentions); // Stripping mentions so replies can be used to repeat queries, possibly with different settings
+					// Stripping mentions so replies can be used to repeat queries, possibly with different settings.
+					let referenced_contents = strip_mention(&referenced_contents, &self.mentions)
+						.map(str::to_string)
+						.unwrap_or(referenced_contents);
 					if referenced_contents.is_empty() {
-						return; // Referenced message had only a mention, makes no sense, ignore
+						return; // Referenced message had only a mention, or otherwise no content (like only an image), makes no sense, ignore.
 					}
 					referenced_contents
 				} else {
 					// A message replying to something, and containing its own text as well
-					use std::fmt::Write;
-					write!(text, " \"{referenced_contents}\"").unwrap();
-					text
+					format!("{text} \"{referenced_contents}\"")
 				}
 			} else {
-				// It has a referenced message, but the bot couldn't get it
+				// It has a referenced message, but the bot couldn't get it.
 				println!(
 					"Could not get message referenced by message {}",
 					message.id.get()
@@ -86,13 +89,15 @@ impl DiscordEventHandler {
 			}
 		} else {
 			// A message not replying to anything, and pinging the bot
-			let old_len = content.len();
-			let text = strip_mention(content, &self.mentions);
-			if old_len == text.len() {
+			let Some(text) = strip_mention(&content, &self.mentions) else {
 				// Pinged the bot but had no mention at either end, so don't take it as being addressed.
 				return;
+			};
+			if text.is_empty() {
+				// Nothing other than a mention, ignore.
+				return;
 			}
-			text
+			text.to_string()
 		};
 
 		self.chatgpt
