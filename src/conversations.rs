@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use serenity::{
+	all::{Cache, ChannelId, GuildId},
 	model::prelude::{Message, MessageId},
 	prelude::Context,
 };
@@ -16,15 +19,21 @@ const TEMPERATURE: f32 = 0.5;
 const MAX_TOKENS: u32 = 400;
 
 impl Chatgpt {
-	/// Start or continue a conversation, based on the presence of `parent_id`.
+	/// Start or continue a conversation, based on the presence of `parent`.
 	pub async fn query(
 		&self,
 		executor: &Pool<Sqlite>,
 		context: Context,
 		input: String,
 		message: Message,
-		parent_id: Option<MessageId>,
+		parent: Option<ParentMessage>,
 	) {
+		if let Some(parent) = parent {
+			if !parent.is_allowed(&message, &context.cache) {
+				return;
+			}
+		}
+
 		let custom_authorization_header = self.custom_authorization_header(message.author.id);
 
 		let (allowance, max_allowance) = allowance_and_max(
@@ -44,7 +53,7 @@ impl Chatgpt {
 			return;
 		}
 
-		let (history, personality) = if let Some(parent_id) = parent_id {
+		let (history, personality) = if let Some(parent_id) = parent {
 			let Some(values) = self
 				.continue_conversation(executor, parent_id, &input)
 				.await
@@ -100,6 +109,8 @@ impl Chatgpt {
 		)
 		.await;
 
+		let guild_id = message.guild_id.unwrap();
+
 		let full_reply = format_chatgpt_message(
 			&response.message_choices[0],
 			personality.emoji(),
@@ -110,18 +121,27 @@ impl Chatgpt {
 		let output = &response.message_choices[0].message.content;
 		let own_message = reply(message, &context.http, full_reply).await.unwrap();
 
-		if let Some(parent_id) = parent_id {
+		if let Some(parent) = parent {
 			store_child_message(
 				executor,
-				own_message.id,
-				parent_id,
+				&own_message,
+				guild_id,
+				parent,
 				&input,
 				output,
 				personality,
 			)
 			.await;
 		} else {
-			store_root_message(executor, own_message.id, &input, output, personality).await;
+			store_root_message(
+				executor,
+				&own_message,
+				guild_id,
+				&input,
+				output,
+				personality,
+			)
+			.await;
 		}
 	}
 
@@ -148,19 +168,16 @@ impl Chatgpt {
 	async fn continue_conversation(
 		&self,
 		executor: &Pool<Sqlite>,
-		parent_id: MessageId,
+		parent: ParentMessage,
 		input: &str,
 	) -> Option<(Vec<ChatMessage>, &Personality)> {
-		let personality = get_message_personality(executor, parent_id)
+		let personality = get_message_personality(executor, parent)
 			.await
 			.and_then(|per| self.get_personality_by_name(&per))
 			.unwrap_or(self.default_personality());
-		let mut history = get_history_from_database(
-			executor,
-			parent_id,
-			personality.system_message().to_string(),
-		)
-		.await;
+		let mut history =
+			get_history_from_database(executor, parent, personality.system_message().to_string())
+				.await;
 		if history.len() == 1 {
 			// Found no actual history, so ignore this message. This most typically happens when replying to a bot message that was not a GPT response, like an error message.
 			return None;
@@ -172,10 +189,10 @@ impl Chatgpt {
 
 async fn get_history_from_database(
 	executor: &Pool<Sqlite>,
-	parent: MessageId,
+	parent: ParentMessage,
 	system_message: String,
 ) -> Vec<ChatMessage> {
-	let message_id = parent.get() as i64;
+	let (guild_id, channel_id, message_id) = parent.as_i64s();
 	let stored_history = query!(
 		"
 		WITH RECURSIVE chain (
@@ -185,24 +202,26 @@ async fn get_history_from_database(
 		)
 		AS (
 			SELECT parent,
-					input,
-					output
-				FROM conversations
-				WHERE message = ?
+				input,
+				output
+			FROM conversations
+			WHERE message = ? AND channel = ? AND guild = ?
 			UNION ALL
 			SELECT parent,
-					input,
-					output
-				FROM chain,
-					conversations
-				WHERE message = next
-				LIMIT 20
+				input,
+				output
+			FROM chain,
+				conversations
+			WHERE message = next
+			LIMIT 20
 		)
 		SELECT input_n AS input,
-				output_n AS output
-			FROM chain;
+			output_n AS output
+		FROM chain;
 		",
-		message_id
+		message_id,
+		channel_id,
+		guild_id
 	)
 	.fetch_all(executor)
 	.await
@@ -217,8 +236,8 @@ async fn get_history_from_database(
 		.collect()
 }
 
-async fn get_message_personality(executor: &Pool<Sqlite>, parent: MessageId) -> Option<String> {
-	let message_id = parent.get() as i64;
+async fn get_message_personality(executor: &Pool<Sqlite>, parent: ParentMessage) -> Option<String> {
+	let (guild_id, channel_id, message_id) = parent.as_i64s();
 	query!(
 		"
 		SELECT
@@ -226,9 +245,11 @@ async fn get_message_personality(executor: &Pool<Sqlite>, parent: MessageId) -> 
 		FROM
 			conversations
 		WHERE
-			message = ?
+			message = ? AND channel = ? AND guild = ?
 		",
-		message_id
+		message_id,
+		channel_id,
+		guild_id,
 	)
 	.fetch_optional(executor)
 	.await
@@ -238,21 +259,26 @@ async fn get_message_personality(executor: &Pool<Sqlite>, parent: MessageId) -> 
 
 async fn store_root_message(
 	executor: &Pool<Sqlite>,
-	message: MessageId,
+	message: &Message,
+	guild_id: GuildId,
 	input: &str,
 	output: &str,
 	personality: &Personality,
 ) {
-	let message_id = message.get() as i64;
+	let message_id = message.id.get() as i64;
+	let channel_id = message.channel_id.get() as i64;
+	let guild_id = guild_id.get() as i64;
 	let system_message = personality.name();
 	query!(
 		"
 		INSERT INTO
-			conversations (message, input, output, system_message)
+			conversations (message, channel, guild, input, output, system_message)
 		VALUES
-			(?, ?, ?, ?)
+			(?, ?, ?, ?, ?, ?)
 		",
 		message_id,
+		channel_id,
+		guild_id,
 		input,
 		output,
 		system_message,
@@ -264,23 +290,28 @@ async fn store_root_message(
 
 async fn store_child_message(
 	executor: &Pool<Sqlite>,
-	message: MessageId,
-	parent: MessageId,
+	message: &Message,
+	guild_id: GuildId,
+	parent: ParentMessage,
 	input: &str,
 	output: &str,
 	personality: &Personality,
 ) {
-	let message_id = message.get() as i64;
-	let parent_id = parent.get() as i64;
+	let message_id = message.id.get() as i64;
+	let channel_id = message.channel_id.get() as i64;
+	let guild_id = guild_id.get() as i64;
+	let parent_id = parent.message_id.get() as i64;
 	let system_message = personality.name();
 	query!(
 		"
 		INSERT INTO
-			conversations (message, parent, input, output, system_message)
+			conversations (message, channel, guild, parent, input, output, system_message)
 		VALUES
-			(?, ?, ?, ?, ?)
+			(?, ?, ?, ?, ?, ?, ?)
 		",
 		message_id,
+		channel_id,
+		guild_id,
 		parent_id,
 		input,
 		output,
@@ -289,4 +320,52 @@ async fn store_child_message(
 	.execute(executor)
 	.await
 	.unwrap();
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ParentMessage {
+	pub guild_id: GuildId,
+	pub channel_id: ChannelId,
+	pub message_id: MessageId,
+}
+
+impl ParentMessage {
+	pub fn new(guild_id: GuildId, channel_id: ChannelId, message_id: MessageId) -> Self {
+		Self {
+			guild_id,
+			channel_id,
+			message_id,
+		}
+	}
+	/// Whether this parent is allowed for this user in this context. A parent is allowed when the guild is the same and the user linking it has access to view the channel.
+	fn is_allowed(&self, message: &Message, cache: &Arc<Cache>) -> bool {
+		if self.guild_id != message.guild_id.unwrap() {
+			// Cross-guild replying is not allowed.
+			false
+		} else if self.channel_id != message.channel_id {
+			let Some(guild) = message.guild(cache) else {
+				return false;
+			};
+			let Some(channel) = guild.channels.get(&self.channel_id) else {
+				return false;
+			};
+			guild
+				.partial_member_permissions_in(
+					channel,
+					message.author.id,
+					message.member.as_ref().unwrap(),
+				)
+				.view_channel()
+		} else {
+			true
+		}
+	}
+	/// This is how they are stored in the database, out of necessity. Returns guild ID, channel ID and message ID, in that order.
+	pub fn as_i64s(self) -> (i64, i64, i64) {
+		(
+			self.guild_id.get() as i64,
+			self.channel_id.get() as i64,
+			self.message_id.get() as i64,
+		)
+	}
 }

@@ -2,7 +2,7 @@ use itertools::Itertools;
 use serenity::{async_trait, model::prelude::*, prelude::*};
 use sqlx::{Pool, Sqlite};
 
-use crate::{allowances, chatgpt::Chatgpt, user_settings};
+use crate::{allowances, chatgpt::Chatgpt, conversations::ParentMessage, user_settings};
 
 /// If there is a mention on either end of the string, removes it and trims. Removes only one mention.
 fn strip_mention<'l>(text: &'l str, mentions: &[String]) -> Option<&'l str> {
@@ -13,22 +13,26 @@ fn strip_mention<'l>(text: &'l str, mentions: &[String]) -> Option<&'l str> {
 		.map(str::trim)
 }
 
-/// If there is a message link at the start of the string, removes it and trims the start, and returns both the remaining message and the message ID.
-fn strip_message_link(text: &str) -> Option<(&str, MessageId)> {
+/// If there is a message link at the start of the string, removes it and trims the start, and returns both the remaining message and the IDs from the link.
+fn extract_message_link(text: &str) -> Option<(&str, ParentMessage)> {
 	let remainder = text.strip_prefix("https://discord.com/channels/")?;
 	let mut section = 0;
-	let mut id = 0;
+	let mut ids = [0, 0, 0];
 	for (index, byte) in remainder.bytes().enumerate() {
 		match byte {
-			b'0'..=b'9' if section == 2 => {
-				id *= 10;
-				id += (byte - b'0') as u64;
+			b'0'..=b'9' => {
+				ids[section] *= 10;
+				ids[section] += (byte - b'0') as u64;
 			}
-			b'0'..=b'9' => (),
 			b'/' if section < 2 => section += 1,
-			b' ' if section == 2 && id != 0 => {
+			b' ' if section == 2 && ids.into_iter().all(|id| id != 0) => {
 				let text = remainder[index..].trim_start();
-				return Some((text, MessageId::new(id)));
+				let parent = ParentMessage::new(
+					GuildId::new(ids[0]),
+					ChannelId::new(ids[1]),
+					MessageId::new(ids[2]),
+				);
+				return Some((text, parent));
 			}
 			_ => {
 				return None;
@@ -81,7 +85,11 @@ impl DiscordEventHandler {
 		let content = if let Some(referenced) = referenced {
 			if referenced.author.id == context.cache.current_user().id {
 				// A message replying to the bot's own message
-				parent = Some(referenced.id);
+				parent = Some(ParentMessage::new(
+					message.guild_id.unwrap(),
+					referenced.channel_id,
+					referenced.id,
+				));
 				content
 			} else if let Some(referenced_contents) =
 				get_referenced_contents(&context.http, referenced).await
@@ -118,9 +126,9 @@ impl DiscordEventHandler {
 				// Pinged the bot but had no mention at either end, so don't take it as being addressed.
 				return;
 			};
-			if let Some((new_text, message_id)) = strip_message_link(text) {
+			if let Some((new_text, parent_message)) = extract_message_link(text) {
 				text = new_text;
-				parent = Some(message_id);
+				parent = Some(parent_message);
 			}
 			if text.is_empty() {
 				// Nothing other than a mention and possibly a message link, ignore.
