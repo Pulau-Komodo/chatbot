@@ -171,8 +171,8 @@ impl ChatgptModel {
 		&self.friendly_name
 	}
 	/// Get the cost of a query in nanodollars.
-	pub fn get_cost(&self, input_tokens: u32, output_tokens: u32) -> u32 {
-		self.input_cost * input_tokens + self.output_cost * output_tokens
+	pub fn get_cost(&self, tokens: TokenUsage) -> u32 {
+		self.input_cost * tokens.prompt_tokens + self.output_cost * tokens.completion_tokens
 	}
 	/// Get a description of the cost of this model.
 	pub fn get_cost_description(&self) -> String {
@@ -307,7 +307,7 @@ pub struct MessageChoice {
 }
 
 /// The token usage of a specific response
-#[derive(Debug, Clone, PartialEq, PartialOrd, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Deserialize)]
 pub struct TokenUsage {
 	/// Tokens spent on the prompt message (including previous messages)
 	pub prompt_tokens: u32,

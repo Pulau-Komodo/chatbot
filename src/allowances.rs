@@ -6,7 +6,7 @@ use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::{model::prelude::UserId, prelude::Context};
 use sqlx::{query, Pool, Sqlite};
 
-use crate::chatgpt::ChatgptModel;
+use crate::chatgpt::{ChatgptModel, TokenUsage};
 use crate::util::interaction_reply;
 
 /// The allowance a user gets over time each day, in nanodollars, by default.
@@ -110,14 +110,13 @@ async fn time_to_full(executor: &Pool<Sqlite>, user: UserId) -> Option<DateTime<
 pub async fn spend_allowance(
 	executor: &Pool<Sqlite>,
 	user: UserId,
-	input_tokens: u32,
-	output_tokens: u32,
+	token_usage: TokenUsage,
 	model: &ChatgptModel,
 	daily_allowance: u32,
 	accrual_days: f32,
 	is_allowance_infinite: bool,
 ) -> (Allowance, Allowance) {
-	let cost = model.get_cost(input_tokens, output_tokens);
+	let cost = model.get_cost(token_usage);
 
 	let added_milliseconds = cost as u64 * MILLISECONDS_PER_DAY / daily_allowance as u64;
 	let time = time_to_full(executor, user).await.unwrap_or_else(Utc::now);
@@ -144,8 +143,8 @@ pub async fn spend_allowance(
 		",
 		user_id,
 		cost,
-		input_tokens,
-		output_tokens,
+		token_usage.prompt_tokens,
+		token_usage.completion_tokens,
 		model,
 	)
 	.execute(executor)

@@ -112,8 +112,7 @@ impl Chatgpt {
 		let (allowance, cost) = spend_allowance(
 			executor,
 			user,
-			response.usage.prompt_tokens,
-			response.usage.completion_tokens,
+			response.usage,
 			model,
 			self.daily_allowance(),
 			self.accrual_days(),
