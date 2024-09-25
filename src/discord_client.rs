@@ -13,6 +13,31 @@ fn strip_mention<'l>(text: &'l str, mentions: &[String]) -> Option<&'l str> {
 		.map(str::trim)
 }
 
+/// If there is a message link at the start of the string, removes it and trims the start, and returns both the remaining message and the message ID.
+fn strip_message_link(text: &str) -> Option<(&str, MessageId)> {
+	let remainder = text.strip_prefix("https://discord.com/channels/")?;
+	let mut section = 0;
+	let mut id = 0;
+	for (index, byte) in remainder.bytes().enumerate() {
+		match byte {
+			b'0'..=b'9' if section == 2 => {
+				id *= 10;
+				id += (byte - b'0') as u64;
+			}
+			b'0'..=b'9' => (),
+			b'/' if section < 2 => section += 1,
+			b' ' if section == 2 && id != 0 => {
+				let text = remainder[index..].trim_start();
+				return Some((text, MessageId::new(id)));
+			}
+			_ => {
+				return None;
+			}
+		}
+	}
+	None
+}
+
 async fn get_referenced_contents(
 	http: &std::sync::Arc<serenity::http::Http>,
 	mut referenced: Box<Message>,
@@ -89,12 +114,16 @@ impl DiscordEventHandler {
 			}
 		} else {
 			// A message not replying to anything, and pinging the bot
-			let Some(text) = strip_mention(&content, &self.mentions) else {
+			let Some(mut text) = strip_mention(&content, &self.mentions) else {
 				// Pinged the bot but had no mention at either end, so don't take it as being addressed.
 				return;
 			};
+			if let Some((new_text, message_id)) = strip_message_link(text) {
+				text = new_text;
+				parent = Some(message_id);
+			}
 			if text.is_empty() {
-				// Nothing other than a mention, ignore.
+				// Nothing other than a mention and possibly a message link, ignore.
 				return;
 			}
 			text.to_string()
