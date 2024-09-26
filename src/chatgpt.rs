@@ -71,7 +71,7 @@ impl Chatgpt {
 		max_tokens: u32,
 		authorization_header: &HeaderValue,
 	) -> Result<CompletionResponse, String> {
-		let response: ServerResponse = self
+		let response = self
 			.client
 			.post(self.api_url.clone())
 			.header(AUTHORIZATION, authorization_header)
@@ -91,13 +91,12 @@ impl Chatgpt {
 			.map_err(|error| {
 				println!("{error}");
 				String::from("Boop beep, problem sending request.")
-			})?
-			.json()
-			.await
-			.map_err(|error| {
-				println!("{error}");
-				String::from("Boop beep, problem derialising response.")
 			})?;
+		let response_debug = format!("{:?}", response);
+		let response: ServerResponse = response.json().await.map_err(|error| {
+			println!("{error}, {:?}", response_debug);
+			String::from("Boop beep, problem deserialising response.")
+		})?;
 		match response {
 			ServerResponse::Error { error } => {
 				eprintln!("Backend error: {}, {}", error.message, error.error_type);
