@@ -26,14 +26,8 @@ impl Chatgpt {
 		context: Context,
 		input: String,
 		message: Message,
-		parent: Option<ParentMessage>,
+		parent: Option<MessageIds>,
 	) {
-		if let Some(parent) = parent {
-			if !parent.is_allowed(&message, &context.cache) {
-				return;
-			}
-		}
-
 		let custom_authorization_header = self.custom_authorization_header(message.author.id);
 
 		let (allowance, max_allowance) = allowance_and_max(
@@ -167,7 +161,7 @@ impl Chatgpt {
 	async fn continue_conversation(
 		&self,
 		executor: &Pool<Sqlite>,
-		parent: ParentMessage,
+		parent: MessageIds,
 		input: &str,
 	) -> Option<(Vec<ChatMessage>, &Personality)> {
 		let personality = get_message_personality(executor, parent)
@@ -188,7 +182,7 @@ impl Chatgpt {
 
 async fn get_history_from_database(
 	executor: &Pool<Sqlite>,
-	parent: ParentMessage,
+	parent: MessageIds,
 	system_message: String,
 ) -> Vec<ChatMessage> {
 	let (guild_id, channel_id, message_id) = parent.as_i64s();
@@ -235,7 +229,7 @@ async fn get_history_from_database(
 		.collect()
 }
 
-async fn get_message_personality(executor: &Pool<Sqlite>, parent: ParentMessage) -> Option<String> {
+async fn get_message_personality(executor: &Pool<Sqlite>, parent: MessageIds) -> Option<String> {
 	let (guild_id, channel_id, message_id) = parent.as_i64s();
 	query!(
 		"
@@ -291,7 +285,7 @@ async fn store_child_message(
 	executor: &Pool<Sqlite>,
 	message: &Message,
 	guild_id: GuildId,
-	parent: ParentMessage,
+	parent: MessageIds,
 	input: &str,
 	output: &str,
 	personality: &Personality,
@@ -322,13 +316,13 @@ async fn store_child_message(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ParentMessage {
+pub struct MessageIds {
 	pub guild_id: GuildId,
 	pub channel_id: ChannelId,
 	pub message_id: MessageId,
 }
 
-impl ParentMessage {
+impl MessageIds {
 	pub fn new(guild_id: GuildId, channel_id: ChannelId, message_id: MessageId) -> Self {
 		Self {
 			guild_id,
@@ -336,13 +330,16 @@ impl ParentMessage {
 			message_id,
 		}
 	}
-	/// Whether this parent is allowed for this user in this context. A parent is allowed when the guild is the same and the user linking it has access to view the channel.
-	fn is_allowed(&self, message: &Message, cache: &Arc<Cache>) -> bool {
+	/// Whether the message is allowed to reply to this message in this context. A message is allowed reply to a message when the guild of that message is the same as where the reply is, and the replying user has access to view the channel.
+	pub fn is_allowed_to_be_replied_to(&self, message: &Message, cache: &Arc<Cache>) -> bool {
 		if self.guild_id != message.guild_id.unwrap() {
 			// Cross-guild replying is not allowed.
 			false
-		} else if self.channel_id != message.channel_id {
-			let Some(guild) = message.guild(cache) else {
+		} else if self.channel_id == message.channel_id {
+			// Same channel is always allowed.
+			true
+		} else {
+			let Some(guild) = cache.guild(self.guild_id) else {
 				return false;
 			};
 			let Some(channel) = guild.channels.get(&self.channel_id) else {
@@ -355,8 +352,6 @@ impl ParentMessage {
 					message.member.as_ref().unwrap(),
 				)
 				.view_channel()
-		} else {
-			true
 		}
 	}
 	/// This is how they are stored in the database, out of necessity. Returns guild ID, channel ID and message ID, in that order.
