@@ -16,6 +16,7 @@ pub const DEFAULT_ACCRUAL_DAYS: f32 = 4.0;
 
 const MILLISECONDS_PER_DAY: u64 = 1000 * 60 * 60 * 24;
 
+#[derive(Debug)]
 /// Be aware of range issues converting millidollars (`f32`) to nanodollars (`i32`).
 pub enum Allowance {
 	Millidollars(f32),
