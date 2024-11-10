@@ -94,8 +94,11 @@ async fn is_own_message(executor: &Pool<Sqlite>, message_id: MessageId) -> bool 
 }
 
 enum ReferencedMessage {
+	/// No message referenced
 	None,
-	Own(MessageIds),
+	/// Message, and whether it used a message link
+	Own(MessageIds, bool),
+	/// Message, and message's contents
 	Others(MessageIds, String),
 }
 
@@ -114,7 +117,7 @@ impl ReferencedMessage {
 					referenced.id,
 				);
 				if referenced.author.id == context.cache.current_user().id {
-					ReferencedMessage::Own(referenced_ids)
+					ReferencedMessage::Own(referenced_ids, false)
 				} else if let Some(referenced_contents) =
 					get_referenced_contents(&context.http, referenced).await
 				{
@@ -129,7 +132,8 @@ impl ReferencedMessage {
 				}
 			} else if let Some((text, link)) = extract_message_link(content) {
 				if is_own_message(database, link.message_id).await {
-					ReferencedMessage::Own(link)
+					content = text;
+					ReferencedMessage::Own(link, true)
 				} else if let Some(mut linked_message) =
 					get_message(context, link.channel_id, link.message_id).await
 				{
@@ -158,21 +162,21 @@ impl ReferencedMessage {
 	}
 	async fn get_parent_and_content(
 		self,
-		reply_body: &str,
+		mut reply_body: &str,
 		mentions: &[String],
 	) -> Option<(Option<MessageIds>, String)> {
 		let mut parent = None;
 		let content = match self {
-			Self::Own(referenced) => {
+			Self::Own(referenced, was_link) => {
+				if was_link {
+					reply_body = strip_mention(reply_body, mentions)?;
+				}
 				parent = Some(referenced);
 				reply_body.to_string()
 			}
 			Self::Others(_, referenced_contents) => {
-				let Some(text) = strip_mention(reply_body, mentions) else {
-					// Pinged the bot but had no mention at either end, so don't take it as being addressed.
-					return None;
-				};
-				if text.is_empty() {
+				reply_body = strip_mention(reply_body, mentions)?;
+				if reply_body.is_empty() {
 					// A message replying to something, but containing nothing but a mention to the bot
 					// Stripping mentions so replies can be used to repeat queries, possibly with different settings.
 					let referenced_contents = strip_mention(&referenced_contents, mentions)
@@ -185,19 +189,16 @@ impl ReferencedMessage {
 					referenced_contents
 				} else {
 					// A message replying to something, and containing its own text as well
-					format!("{text} \"{referenced_contents}\"")
+					format!("{reply_body} \"{referenced_contents}\"")
 				}
 			}
 			Self::None => {
-				let Some(text) = strip_mention(reply_body, mentions) else {
-					// Pinged the bot but had no mention at either end, so don't take it as being addressed.
-					return None;
-				};
-				if text.is_empty() {
+				reply_body = strip_mention(reply_body, mentions)?;
+				if reply_body.is_empty() {
 					// Nothing other than a mention, ignore.
 					return None;
 				}
-				text.to_string()
+				reply_body.to_string()
 			}
 		};
 		Some((parent, content))
@@ -209,7 +210,7 @@ impl ReferencedMessage {
 	) -> bool {
 		match self {
 			Self::None => true,
-			Self::Own(message_ids) => message_ids.is_allowed_to_be_replied_to(message, cache),
+			Self::Own(message_ids, _) => message_ids.is_allowed_to_be_replied_to(message, cache),
 			Self::Others(message_ids, _) => message_ids.is_allowed_to_be_replied_to(message, cache),
 		}
 	}
@@ -246,6 +247,7 @@ impl DiscordEventHandler {
 		else {
 			return;
 		};
+
 		if !referenced.is_allowed_to_be_replied_to(&message, &context.cache) {
 			return;
 		}
