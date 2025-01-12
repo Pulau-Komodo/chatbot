@@ -22,12 +22,7 @@ pub struct Gpt {
 	api_url: Url,
 	authorization_header: HeaderValue,
 	custom_authorization_headers: HashMap<UserId, HeaderValue>,
-	daily_allowance: u32,
-	accrual_days: f32,
-	models: Vec<GptModel>,
-	personalities: Vec<PersonalityPreset>,
-	one_offs: Vec<OneOffCommand>,
-	prototyping_roles: Vec<RoleId>,
+	config: Config,
 }
 
 impl Gpt {
@@ -55,12 +50,7 @@ impl Gpt {
 			api_url,
 			authorization_header,
 			custom_authorization_headers: custom_api_keys.into_headers(),
-			daily_allowance: config.daily_allowance,
-			accrual_days: config.accrual_days,
-			models: config.models,
-			personalities: config.personalities,
-			one_offs: config.one_offs,
-			prototyping_roles: config.prototyping_roles,
+			config,
 		})
 	}
 
@@ -120,45 +110,49 @@ impl Gpt {
 		self.custom_authorization_headers.get(&user)
 	}
 	pub fn daily_allowance(&self) -> u32 {
-		self.daily_allowance
+		self.config.daily_allowance
 	}
 	pub fn accrual_days(&self) -> f32 {
-		self.accrual_days
+		self.config.accrual_days
 	}
 	pub fn get_model_by_name(&self, name: &str) -> Option<&GptModel> {
-		self.models.iter().find(|model| model.name() == name)
+		self.config.models.iter().find(|model| model.name() == name)
 	}
 	pub fn default_model(&self) -> &GptModel {
-		self.models.first().unwrap() // There should always be at least one model, enforced on creating `Config`.
+		self.config.models.first().unwrap() // There should always be at least one model, enforced on creating `Config`.
 	}
 	/// The available models, excluding default.
 	pub fn models(&self) -> &Vec<GptModel> {
-		&self.models
+		&self.config.models
 	}
 	pub fn get_personality_by_name<'a>(&'a self, name: &str) -> Option<Personality<'a>> {
 		if let Some(message) = extract_custom(name) {
 			Some(Personality::Custom(message.to_string()))
 		} else {
-			self.personalities
+			self.config
+				.personalities
 				.iter()
 				.find(|personality| personality.name() == name)
 				.map(Personality::Preset)
 		}
 	}
 	pub fn default_personality(&self) -> &PersonalityPreset {
-		self.personalities.first().unwrap() // There should always be at least one personality, enforced on creating `Config`.
+		self.config.personalities.first().unwrap() // There should always be at least one personality, enforced on creating `Config`.
 	}
 	pub fn personalities(&self) -> &Vec<PersonalityPreset> {
-		&self.personalities
+		&self.config.personalities
 	}
 	pub fn get_one_off_by_name(&self, name: &str) -> Option<&OneOffCommand> {
-		self.one_offs.iter().find(|one_off| one_off.name() == name)
+		self.config
+			.one_offs
+			.iter()
+			.find(|one_off| one_off.name() == name)
 	}
 	pub fn one_offs(&self) -> &Vec<OneOffCommand> {
-		&self.one_offs
+		&self.config.one_offs
 	}
 	pub fn prototyping_roles(&self) -> &Vec<RoleId> {
-		&self.prototyping_roles
+		&self.config.prototyping_roles
 	}
 }
 
