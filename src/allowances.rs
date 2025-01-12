@@ -163,9 +163,6 @@ pub async fn spend_allowance(
 
 const PRECISION_MULTIPLIER: f32 = 100.0;
 const MILLIDOLLARS_PER_NANODOLLAR: f32 = 1.0e6;
-/// The allowance in millidollars, for strings.
-// pub const MAX_MILLIDOLLARS: f32 =
-// 	(DEFAULT_DAILY_ALLOWANCE * DEFAULT_ACCRUAL_DAYS) as f32 / MILLIDOLLARS_PER_NANODOLLAR;
 
 /// Converts an integer number of nanodollars to a float number of millidollars, rounded to 2 decimal places.
 fn nanodollars_to_millidollars(allowance: f32) -> f32 {
