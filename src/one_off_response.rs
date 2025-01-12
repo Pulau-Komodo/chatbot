@@ -8,9 +8,9 @@ use sqlx::{Pool, Sqlite};
 
 use crate::{
 	allowances::{allowance_and_max, spend_allowance},
-	chatgpt::{ChatMessage, Chatgpt},
+	gpt::{ChatMessage, Gpt},
 	user_settings::get_model_setting,
-	util::{format_chatgpt_message, interaction_followup},
+	util::{format_chat_message, interaction_followup},
 };
 
 const TEMPERATURE: f32 = 0.5;
@@ -46,13 +46,13 @@ impl OneOffCommand {
 		&self,
 		context: Context,
 		interaction: CommandInteraction,
-		chatgpt: &Chatgpt,
+		gpt: &Gpt,
 		executor: &Pool<Sqlite>,
 	) -> Result<(), ()> {
 		single_text_input_with_system_message(
 			context,
 			interaction,
-			chatgpt,
+			gpt,
 			executor,
 			&self.emoji,
 			&self.system_message,
@@ -61,8 +61,8 @@ impl OneOffCommand {
 	}
 }
 
-impl Chatgpt {
-	/// An OK result is a success response from the ChatGPT API. An error can be an error response from the API or an error before even sending to the API.
+impl Gpt {
+	/// An OK result is a success response from the GPT API. An error can be an error response from the API or an error before even sending to the API.
 	async fn one_off(
 		&self,
 		executor: &Pool<Sqlite>,
@@ -120,7 +120,7 @@ impl Chatgpt {
 		)
 		.await;
 
-		Ok(format_chatgpt_message(
+		Ok(format_chat_message(
 			&response.message_choices[0],
 			emoji,
 			cost,
@@ -133,7 +133,7 @@ impl Chatgpt {
 async fn single_text_input_with_system_message(
 	context: Context,
 	interaction: CommandInteraction,
-	chatgpt: &Chatgpt,
+	gpt: &Gpt,
 	executor: &Pool<Sqlite>,
 	emoji: &str,
 	system_message: &str,
@@ -149,7 +149,7 @@ async fn single_text_input_with_system_message(
 
 	interaction.defer(&context).await.map_err(|_| ())?;
 
-	let response = match chatgpt
+	let response = match gpt
 		.one_off(executor, interaction.user.id, system_message, emoji, input)
 		.await
 	{

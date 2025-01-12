@@ -6,7 +6,7 @@ use serenity::all::{RoleId, UserId};
 
 use crate::{
 	allowances::{DEFAULT_ACCRUAL_DAYS, DEFAULT_DAILY_ALLOWANCE},
-	chatgpt::ChatgptModel,
+	gpt::GptModel,
 	one_off_response::OneOffCommand,
 	response_styles::{extract_custom, PersonalityPreset},
 };
@@ -15,7 +15,7 @@ use crate::{
 pub struct Config {
 	pub daily_allowance: u32,
 	pub accrual_days: f32,
-	pub models: Vec<ChatgptModel>,
+	pub models: Vec<GptModel>,
 	pub personalities: Vec<PersonalityPreset>,
 	pub one_offs: Vec<OneOffCommand>,
 	pub prototyping_roles: Vec<RoleId>,
@@ -60,7 +60,7 @@ impl From<PartialConfig> for Config {
 struct PartialConfig {
 	daily_allowance: Option<u32>,
 	accrual_days: Option<f32>,
-	models: Option<Vec<ChatgptModel>>,
+	models: Option<Vec<GptModel>>,
 	personalities: Option<Vec<PersonalityPreset>>,
 	one_offs: Option<Vec<OneOffCommand>>,
 	prototyping_roles: Option<Vec<RoleId>>,

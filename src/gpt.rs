@@ -1,5 +1,5 @@
-//! Much of this was taken from https://github.com/Maxuss/chatgpt_rs Copyright (c) 2022 Maksim Petrov
-//! But I have completely gutted and refactored it, removing all the parts I don't use, and shaping it to a different interaction model, where no conversation is stored outside the database, and options are not stored with the client.
+//! I used this as a starting point: https://github.com/Maxuss/chatgpt_rs Copyright (c) 2022 Maksim Petrov
+//! But there is almost nothing left of it.
 
 use reqwest::{
 	header::{HeaderValue, AUTHORIZATION},
@@ -15,23 +15,23 @@ use crate::{
 	response_styles::{extract_custom, Personality, PersonalityPreset},
 };
 
-// The client that operates the ChatGPT API
+// The client that operates the GPT API
 #[derive(Debug, Clone)]
-pub struct Chatgpt {
+pub struct Gpt {
 	client: reqwest::Client,
 	api_url: Url,
 	authorization_header: HeaderValue,
 	custom_authorization_headers: HashMap<UserId, HeaderValue>,
 	daily_allowance: u32,
 	accrual_days: f32,
-	models: Vec<ChatgptModel>,
+	models: Vec<GptModel>,
 	personalities: Vec<PersonalityPreset>,
 	one_offs: Vec<OneOffCommand>,
 	prototyping_roles: Vec<RoleId>,
 }
 
-impl Chatgpt {
-	/// Constructs a new ChatGPT API client with provided API key and URL.
+impl Gpt {
+	/// Constructs a new GPT API client with provided API key and URL.
 	///
 	/// `api_url` is the URL of the /v1/chat/completions endpoint. Can be used to set a proxy.
 	pub fn new<S>(
@@ -125,14 +125,14 @@ impl Chatgpt {
 	pub fn accrual_days(&self) -> f32 {
 		self.accrual_days
 	}
-	pub fn get_model_by_name(&self, name: &str) -> Option<&ChatgptModel> {
+	pub fn get_model_by_name(&self, name: &str) -> Option<&GptModel> {
 		self.models.iter().find(|model| model.name() == name)
 	}
-	pub fn default_model(&self) -> &ChatgptModel {
+	pub fn default_model(&self) -> &GptModel {
 		self.models.first().unwrap() // There should always be at least one model, enforced on creating `Config`.
 	}
 	/// The available models, excluding default.
-	pub fn models(&self) -> &Vec<ChatgptModel> {
+	pub fn models(&self) -> &Vec<GptModel> {
 		&self.models
 	}
 	pub fn get_personality_by_name<'a>(&'a self, name: &str) -> Option<Personality<'a>> {
@@ -163,14 +163,14 @@ impl Chatgpt {
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-pub struct ChatgptModel {
+pub struct GptModel {
 	name: String,
 	friendly_name: String,
 	input_cost: u32,
 	output_cost: u32,
 }
 
-impl ChatgptModel {
+impl GptModel {
 	/// Name as used by the API and the database.
 	pub fn name(&self) -> &str {
 		&self.name
@@ -195,20 +195,20 @@ impl ChatgptModel {
 
 /// A role of a message sender, can be:
 /// - `System`, for starting system message, that sets the tone of model
-/// - `Assistant`, for messages sent by ChatGPT
+/// - `Assistant`, for messages sent by GPT
 /// - `User`, for messages sent by user
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Eq, Ord)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
 	/// A system message, automatically sent at the start to set the tone of the model
 	System,
-	/// A message sent by ChatGPT
+	/// A message sent by GPT
 	Assistant,
 	/// A message sent by the user
 	User,
 }
 
-/// Container for the sent/received ChatGPT messages
+/// Container for the sent/received GPT messages
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct ChatMessage {
 	/// Role of message sender

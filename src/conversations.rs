@@ -9,16 +9,16 @@ use sqlx::{query, Pool, Sqlite};
 
 use crate::{
 	allowances::{allowance_and_max, spend_allowance},
-	chatgpt::{ChatMessage, Chatgpt},
+	gpt::{ChatMessage, Gpt},
 	response_styles::Personality,
 	user_settings::{get_model_setting, get_user_personality},
-	util::{format_chatgpt_message, reply},
+	util::{format_chat_message, reply},
 };
 
 const TEMPERATURE: f32 = 0.5;
 const MAX_TOKENS: u32 = 400;
 
-impl Chatgpt {
+impl Gpt {
 	/// Start or continue a conversation, based on the presence of `parent`.
 	pub async fn query(
 		&self,
@@ -104,7 +104,7 @@ impl Chatgpt {
 
 		let guild_id = message.guild_id.unwrap();
 
-		let full_reply = format_chatgpt_message(
+		let full_reply = format_chat_message(
 			&response.message_choices[0],
 			personality.emoji(),
 			cost,

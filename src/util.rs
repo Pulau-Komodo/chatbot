@@ -11,7 +11,7 @@ use serenity::{
 
 use crate::{
 	allowances::Allowance,
-	chatgpt::{ChatgptModel, MessageChoice},
+	gpt::{GptModel, MessageChoice},
 };
 
 /// Replies to a message, without pinging, putting the text into an embed if it's too long.
@@ -106,13 +106,13 @@ where
 	.map(|_| ())
 }
 
-/// Attaches formatting to the message from ChatGPT, like "🤖 Hello. (-0.25 m$, 39.95 m$) (GPT-4)".
-pub fn format_chatgpt_message(
+/// Attaches formatting to the message from GPT, like "🤖 Hello. (-0.25 m$, 39.95 m$) (GPT-4)".
+pub fn format_chat_message(
 	response: &MessageChoice,
 	emoji: &str,
 	cost: Allowance,
 	allowance: Allowance,
-	model: Option<&ChatgptModel>,
+	model: Option<&GptModel>,
 ) -> String {
 	let output = &response.message.content;
 	let ending = ending_from_finish_reason(&response.finish_reason);

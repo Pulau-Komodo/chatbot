@@ -6,7 +6,7 @@ use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::{model::prelude::UserId, prelude::Context};
 use sqlx::{query, Pool, Sqlite};
 
-use crate::chatgpt::{ChatgptModel, TokenUsage};
+use crate::gpt::{GptModel, TokenUsage};
 use crate::util::interaction_reply;
 
 /// The allowance a user gets over time each day, in nanodollars, by default.
@@ -112,7 +112,7 @@ pub async fn spend_allowance(
 	executor: &Pool<Sqlite>,
 	user: UserId,
 	token_usage: TokenUsage,
-	model: &ChatgptModel,
+	model: &GptModel,
 	daily_allowance: u32,
 	accrual_days: f32,
 	is_allowance_infinite: bool,
@@ -187,7 +187,7 @@ pub async fn command_check(
 	Ok(())
 }
 pub fn register() -> CreateCommand {
-	CreateCommand::new("allowance").description("Check your current allowance for using ChatGPT.")
+	CreateCommand::new("allowance").description("Check your current allowance for using GPT.")
 }
 
 async fn get_expenditure(executor: &Pool<Sqlite>, user: Option<UserId>) -> u64 {
@@ -247,9 +247,7 @@ pub async fn command_expenditure(
 }
 pub fn register_check_expenditure() -> CreateCommand {
 	CreateCommand::new("spent")
-		.description(
-			"Check how many millidollars you have or everyone has used on ChatGPT prompts.",
-		)
+		.description("Check how many millidollars you have or everyone has used on GPT prompts.")
 		.add_option(
 			CreateCommandOption::new(
 				CommandOptionType::Boolean,

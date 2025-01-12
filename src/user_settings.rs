@@ -5,7 +5,7 @@ use serenity::{
 };
 use sqlx::{query, Pool, Sqlite};
 
-use crate::{chatgpt::Chatgpt, response_styles::wrap_custom, util::interaction_reply};
+use crate::{gpt::Gpt, response_styles::wrap_custom, util::interaction_reply};
 
 // Model
 
@@ -61,11 +61,11 @@ pub async fn command_set_model(
 	context: Context,
 	interaction: CommandInteraction,
 	executor: &Pool<Sqlite>,
-	chatgpt: &Chatgpt,
+	gpt: &Gpt,
 ) -> Result<(), ()> {
 	let current_model_name = get_model_setting(executor, interaction.user.id)
 		.await
-		.unwrap_or(chatgpt.default_model().name().to_string());
+		.unwrap_or(gpt.default_model().name().to_string());
 	let new_model_name = interaction
 		.data
 		.options
@@ -74,7 +74,7 @@ pub async fn command_set_model(
 		.value
 		.as_str()
 		.unwrap();
-	let new_model = chatgpt.get_model_by_name(new_model_name).unwrap(); // To do: handle this more gracefully. It will panic if the database still has some model that later became unsupported.
+	let new_model = gpt.get_model_by_name(new_model_name).unwrap(); // To do: handle this more gracefully. It will panic if the database still has some model that later became unsupported.
 	let output = if current_model_name == new_model_name {
 		format!(
 			"Model was already set to {} ({}).",
@@ -82,7 +82,7 @@ pub async fn command_set_model(
 			new_model.get_cost_description()
 		)
 	} else {
-		if new_model == chatgpt.default_model() {
+		if new_model == gpt.default_model() {
 			set_model(executor, interaction.user.id, None).await;
 		} else {
 			set_model(executor, interaction.user.id, Some(new_model.name())).await;
@@ -97,7 +97,7 @@ pub async fn command_set_model(
 	Ok(())
 }
 
-pub fn register_set_model(chatgpt: &Chatgpt) -> CreateCommand {
+pub fn register_set_model(gpt: &Gpt) -> CreateCommand {
 	let mut model_option = CreateCommandOption::new(
 		CommandOptionType::String,
 		"model",
@@ -105,10 +105,10 @@ pub fn register_set_model(chatgpt: &Chatgpt) -> CreateCommand {
 	)
 	.required(true)
 	.add_string_choice(
-		format!("{} (default)", chatgpt.default_model().friendly_name()),
-		chatgpt.default_model().name(),
+		format!("{} (default)", gpt.default_model().friendly_name()),
+		gpt.default_model().name(),
 	);
-	for model in &chatgpt.models()[1..] {
+	for model in &gpt.models()[1..] {
 		model_option = model_option.add_string_choice(model.friendly_name(), model.name());
 	}
 
@@ -190,14 +190,14 @@ pub async fn command_set_personality(
 	Ok(())
 }
 
-pub fn register_set_personality(chatgpt: &Chatgpt) -> CreateCommand {
+pub fn register_set_personality(gpt: &Gpt) -> CreateCommand {
 	let mut personality_option = CreateCommandOption::new(
 		CommandOptionType::String,
 		"personality",
 		"The personality your new conversations will use.",
 	)
 	.required(true);
-	for personality in chatgpt.personalities() {
+	for personality in gpt.personalities() {
 		personality_option = personality_option.add_string_choice(
 			format!("{} {}", personality.name(), personality.emoji()),
 			personality.name(),
@@ -213,10 +213,10 @@ pub async fn command_set_custom_personality(
 	context: Context,
 	interaction: CommandInteraction,
 	executor: &Pool<Sqlite>,
-	chatgpt: &Chatgpt,
+	gpt: &Gpt,
 ) -> Result<(), ()> {
 	let member = interaction.member.as_ref().ok_or(())?;
-	if !chatgpt
+	if !gpt
 		.prototyping_roles()
 		.iter()
 		.any(|role| member.roles.contains(role))
