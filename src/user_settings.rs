@@ -5,7 +5,7 @@ use serenity::{
 };
 use sqlx::{query, Pool, Sqlite};
 
-use crate::{chatgpt::Chatgpt, util::interaction_reply};
+use crate::{chatgpt::Chatgpt, response_styles::wrap_custom, util::interaction_reply};
 
 // Model
 
@@ -207,4 +207,58 @@ pub fn register_set_personality(chatgpt: &Chatgpt) -> CreateCommand {
 	CreateCommand::new("personality")
 		.description("Sets the personality for new conversations started by you.")
 		.add_option(personality_option)
+}
+
+pub async fn command_set_custom_personality(
+	context: Context,
+	interaction: CommandInteraction,
+	executor: &Pool<Sqlite>,
+	chatgpt: &Chatgpt,
+) -> Result<(), ()> {
+	let member = interaction.member.as_ref().ok_or(())?;
+	if !chatgpt
+		.prototyping_roles()
+		.iter()
+		.any(|role| member.roles.contains(role))
+	{
+		let _ = interaction_reply(
+			context,
+			interaction,
+			"You do not have a role that allows you to use this command.",
+			true,
+		)
+		.await;
+		return Ok(());
+	}
+
+	let system_message = interaction
+		.data
+		.options
+		.first()
+		.and_then(|option| option.value.as_str())
+		.ok_or(())?;
+
+	set_personality(
+		executor,
+		interaction.user.id,
+		Some(wrap_custom(system_message).as_str()),
+	)
+	.await;
+
+	let _ = interaction_reply(context, interaction, "Custom personality set.", false).await;
+
+	Ok(())
+}
+
+pub fn register_set_custom_personality() -> CreateCommand {
+	CreateCommand::new("custom_personality")
+		.description("Set a custom personality for new conversations started by you. This is meant for prototyping.")
+		.add_option(
+			CreateCommandOption::new(
+				CommandOptionType::String,
+				"custom_system_message",
+				"The system message to instruct GPT how to behave in the conversation.",
+			)
+			.required(true),
+		)
 }

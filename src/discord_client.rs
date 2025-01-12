@@ -305,6 +305,15 @@ impl EventHandler for DiscordEventHandler {
 					user_settings::command_set_personality(context, interaction, &self.database)
 						.await
 				}
+				"custom_personality" => {
+					user_settings::command_set_custom_personality(
+						context,
+						interaction,
+						&self.database,
+						&self.chatgpt,
+					)
+					.await
+				}
 				name => {
 					if let Some(one_off) = self.chatgpt.get_one_off_by_name(name) {
 						one_off
@@ -324,7 +333,7 @@ impl EventHandler for DiscordEventHandler {
 		let arg = std::env::args().nth(1);
 		if let Some(arg) = arg {
 			if &arg == "register" {
-				let mut command_count = 2 + self.chatgpt.one_offs().len();
+				let mut command_count = 3 + self.chatgpt.one_offs().len();
 				if !self.chatgpt.models().is_empty() {
 					command_count += 1;
 				}
@@ -342,6 +351,7 @@ impl EventHandler for DiscordEventHandler {
 				if self.chatgpt.personalities().len() > 1 {
 					commands.push(user_settings::register_set_personality(&self.chatgpt));
 				}
+				commands.push(user_settings::register_set_custom_personality());
 				for one_off in self.chatgpt.one_offs() {
 					commands.push(one_off.create());
 				}

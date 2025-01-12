@@ -11,7 +11,7 @@ models = [
 	{ name = "gpt-4o-mini", friendly_name = "GPT-4o mini", input_cost = 150, output_cost = 600 },
 	{ name = "gpt-4o", friendly_name = "GPT-4o", input_cost = 5_000, output_cost = 15_000 },
 	{ name = "gpt-3.5-turbo", friendly_name = "GPT-3.5 Turbo", input_cost = 500, output_cost = 1_500 },
-#	{ name = "gpt-4", friendly_name = "GPT-4", input_cost = 30_000, output_cost = 60_000 },
+	#{ name = "gpt-4", friendly_name = "GPT-4", input_cost = 30_000, output_cost = 60_000 },
 ]
 
 # Personalities users can choose from, with the first being default. There needs to be at least one.
@@ -39,3 +39,6 @@ one_offs = [
 	{ name = "judgment", emoji = "👨‍⚖️", description = "Judges the specified crime.", argument = "crime", argument_description = "The crime to have judged.", system_message = "You are a royal judge with medieval views on punishment. The user will tell you a moral or social transgression, and you need to come up with a creative and unusual punishment that relates to the crime. For example, annoying drunkards may be told to drink a lot, or they may be made to walk the streets wearing only a barrel. If what the user said is totally fine morally and socially, instead of coming up with a punishment, just tell them it's not a crime." },
 	{ name = "genre", emoji = "🇫🇷", description = "Tells you the gender of a French noun.", argument = "noun", argument_description = "The noun to get the gender of.", system_message = "The user will say a French noun. Reply with the gender of that noun, and any tricks that the user might have used to know that gender. If the noun can be either gender (either depending on the gender of the person referred to, like artiste, or depending on the meaning, like un tour and une tour), say so and explain why. If there is no noun, just say that." },
 ]
+
+# Members with a role with one of these IDs are allowed to set custom personalities.
+prototyping_roles = []

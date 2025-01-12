@@ -6,13 +6,13 @@ use reqwest::{
 	Url,
 };
 use serde::{Deserialize, Serialize};
-use serenity::all::UserId;
+use serenity::all::{RoleId, UserId};
 use std::{collections::HashMap, fmt::Display};
 
 use crate::{
 	config::{Config, CustomApiKeys},
 	one_off_response::OneOffCommand,
-	response_styles::Personality,
+	response_styles::{extract_custom, Personality, PersonalityPreset},
 };
 
 // The client that operates the ChatGPT API
@@ -25,8 +25,9 @@ pub struct Chatgpt {
 	daily_allowance: u32,
 	accrual_days: f32,
 	models: Vec<ChatgptModel>,
-	personalities: Vec<Personality>,
+	personalities: Vec<PersonalityPreset>,
 	one_offs: Vec<OneOffCommand>,
+	prototyping_roles: Vec<RoleId>,
 }
 
 impl Chatgpt {
@@ -59,6 +60,7 @@ impl Chatgpt {
 			models: config.models,
 			personalities: config.personalities,
 			one_offs: config.one_offs,
+			prototyping_roles: config.prototyping_roles,
 		})
 	}
 
@@ -133,15 +135,20 @@ impl Chatgpt {
 	pub fn models(&self) -> &Vec<ChatgptModel> {
 		&self.models
 	}
-	pub fn get_personality_by_name(&self, name: &str) -> Option<&Personality> {
-		self.personalities
-			.iter()
-			.find(|personality| personality.name() == name)
+	pub fn get_personality_by_name<'a>(&'a self, name: &str) -> Option<Personality<'a>> {
+		if let Some(message) = extract_custom(name) {
+			Some(Personality::Custom(message.to_string()))
+		} else {
+			self.personalities
+				.iter()
+				.find(|personality| personality.name() == name)
+				.map(Personality::Preset)
+		}
 	}
-	pub fn default_personality(&self) -> &Personality {
+	pub fn default_personality(&self) -> &PersonalityPreset {
 		self.personalities.first().unwrap() // There should always be at least one personality, enforced on creating `Config`.
 	}
-	pub fn personalities(&self) -> &Vec<Personality> {
+	pub fn personalities(&self) -> &Vec<PersonalityPreset> {
 		&self.personalities
 	}
 	pub fn get_one_off_by_name(&self, name: &str) -> Option<&OneOffCommand> {
@@ -149,6 +156,9 @@ impl Chatgpt {
 	}
 	pub fn one_offs(&self) -> &Vec<OneOffCommand> {
 		&self.one_offs
+	}
+	pub fn prototyping_roles(&self) -> &Vec<RoleId> {
+		&self.prototyping_roles
 	}
 }
 

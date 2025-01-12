@@ -2,13 +2,13 @@ use std::{collections::HashMap, fs, path::Path};
 
 use reqwest::header::HeaderValue;
 use serde::Deserialize;
-use serenity::all::UserId;
+use serenity::all::{RoleId, UserId};
 
 use crate::{
 	allowances::{DEFAULT_ACCRUAL_DAYS, DEFAULT_DAILY_ALLOWANCE},
 	chatgpt::ChatgptModel,
 	one_off_response::OneOffCommand,
-	response_styles::Personality,
+	response_styles::{extract_custom, PersonalityPreset},
 };
 
 #[derive(Debug, Clone)]
@@ -16,8 +16,9 @@ pub struct Config {
 	pub daily_allowance: u32,
 	pub accrual_days: f32,
 	pub models: Vec<ChatgptModel>,
-	pub personalities: Vec<Personality>,
+	pub personalities: Vec<PersonalityPreset>,
 	pub one_offs: Vec<OneOffCommand>,
+	pub prototyping_roles: Vec<RoleId>,
 }
 
 impl Config {
@@ -36,12 +37,20 @@ impl From<PartialConfig> for Config {
 				.personalities
 				.expect("There needs to be at least one personality."),
 			one_offs: value.one_offs.unwrap_or_default(),
+			prototyping_roles: value.prototyping_roles.unwrap_or_default(),
 		};
 		if config.models.is_empty() {
 			panic!("There needs to be at least one model.");
 		}
 		if config.personalities.is_empty() {
 			panic!("There needs to be at least one personality.");
+		}
+		if config
+			.personalities
+			.iter()
+			.any(|p| extract_custom(p.name()).is_some())
+		{
+			panic!("Don't name any personality \"custom(whatever)\".");
 		}
 		config
 	}
@@ -52,8 +61,9 @@ struct PartialConfig {
 	daily_allowance: Option<u32>,
 	accrual_days: Option<f32>,
 	models: Option<Vec<ChatgptModel>>,
-	personalities: Option<Vec<Personality>>,
+	personalities: Option<Vec<PersonalityPreset>>,
 	one_offs: Option<Vec<OneOffCommand>>,
+	prototyping_roles: Option<Vec<RoleId>>,
 }
 
 impl PartialConfig {

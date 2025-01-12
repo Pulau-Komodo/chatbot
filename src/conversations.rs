@@ -144,11 +144,11 @@ impl Chatgpt {
 		executor: &Pool<Sqlite>,
 		message: &Message,
 		input: &str,
-	) -> (Vec<ChatMessage>, &Personality) {
+	) -> (Vec<ChatMessage>, Personality) {
 		let personality = get_user_personality(executor, message.author.id)
 			.await
-			.and_then(|per| self.get_personality_by_name(&per))
-			.unwrap_or(self.default_personality());
+			.and_then(|name| self.get_personality_by_name(&name))
+			.unwrap_or(Personality::Preset(self.default_personality()));
 		let history = [
 			ChatMessage::system(personality.system_message().to_string()),
 			ChatMessage::user(input.to_string()),
@@ -163,11 +163,11 @@ impl Chatgpt {
 		executor: &Pool<Sqlite>,
 		parent: MessageIds,
 		input: &str,
-	) -> Option<(Vec<ChatMessage>, &Personality)> {
+	) -> Option<(Vec<ChatMessage>, Personality)> {
 		let personality = get_message_personality(executor, parent)
 			.await
 			.and_then(|per| self.get_personality_by_name(&per))
-			.unwrap_or(self.default_personality());
+			.unwrap_or(Personality::Preset(self.default_personality()));
 		let mut history =
 			get_history_from_database(executor, parent, personality.system_message().to_string())
 				.await;
@@ -256,12 +256,12 @@ async fn store_root_message(
 	guild_id: GuildId,
 	input: &str,
 	output: &str,
-	personality: &Personality,
+	personality: Personality<'_>,
 ) {
 	let message_id = message.id.get() as i64;
 	let channel_id = message.channel_id.get() as i64;
 	let guild_id = guild_id.get() as i64;
-	let system_message = personality.name();
+	let system_message = personality.database_name();
 	query!(
 		"
 		INSERT INTO
@@ -288,13 +288,13 @@ async fn store_child_message(
 	parent: MessageIds,
 	input: &str,
 	output: &str,
-	personality: &Personality,
+	personality: Personality<'_>,
 ) {
 	let message_id = message.id.get() as i64;
 	let channel_id = message.channel_id.get() as i64;
 	let guild_id = guild_id.get() as i64;
 	let parent_id = parent.message_id.get() as i64;
-	let system_message = personality.name();
+	let system_message = personality.database_name();
 	query!(
 		"
 		INSERT INTO
