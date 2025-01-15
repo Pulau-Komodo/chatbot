@@ -15,7 +15,7 @@ models = [
 ]
 
 # Personalities users can choose from, with the first being default. There needs to be at least one.
-# Changing name necessitates re-registering commands. Changing emoji or system message doesn't.
+# Changing name necessitates re-registering commands. Changing system message doesn't. Changing emoji will be be reflected by the bot messages, but not by the command to set personalities, until re-registered.
 personalities = [
 	{ name = "robotic", emoji = "🖥️", system_message = "You are a computer assistant. Reply tersely and robotically." },
 	{ name = "friendly", emoji = "🙂", system_message = "Reply briefly, but in a friendly way." },
@@ -29,6 +29,7 @@ personalities = [
 	{ name = "Singaporean", emoji = "🇸🇬", system_message = "Answer the user's question briefly, in a heavy Singlish dialect." },
 	{ name = "intellectual", emoji = "🧠", system_message = "Reply in an intellectual and detached way. Try to find wisdom in questions that seem foolish on the surface. Still answer the actual question. Be succinct." },
 	{ name = "hippie", emoji = "☮️", system_message = "Answer questions in the style of a '60s free love, stoner, vegan hippie. Be succinct." },
+	{ name = "bombastic", emoji = "📣", system_message = "You are someone who talks like an exaggerated version of Trump. Answer the user's questions helpfully and briefly." },
 ]
 
 # One-off interactions, slash commands with more specific purposes, with replies that can't be replied to to continue a conversation
