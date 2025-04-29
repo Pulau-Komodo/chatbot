@@ -9,8 +9,11 @@ accrual_days = 4.0
 # Changing name or friendly name necessitates re-registering commands.
 models = [
 	{ name = "gpt-4o-mini", friendly_name = "GPT-4o mini", input_cost = 150, output_cost = 600 },
-	{ name = "gpt-4o", friendly_name = "GPT-4o", input_cost = 5_000, output_cost = 15_000 },
+	{ name = "gpt-4o", friendly_name = "GPT-4o", input_cost = 2_500, output_cost = 10_000 },
 	{ name = "gpt-3.5-turbo", friendly_name = "GPT-3.5 Turbo", input_cost = 500, output_cost = 1_500 },
+	{ name = "gpt-4.1", friendly_name = "GPT-4.1", input_cost = 2_000, output_cost = 8_000 },
+	{ name = "gpt-4.1-mini", friendly_name = "GPT-4.1 mini", input_cost = 400, output_cost = 1_600 },
+	{ name = "gpt-4.1-nano", friendly_name = "GPT-4.1 nano", input_cost = 100, output_cost = 400 },
 	#{ name = "gpt-4", friendly_name = "GPT-4", input_cost = 30_000, output_cost = 60_000 },
 ]
 
