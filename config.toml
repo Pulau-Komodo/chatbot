@@ -6,14 +6,17 @@ accrual_days = 4.0
 # AI models that can be chosen from.
 # Name is what will be sent to the API. Friendly name is what will be displayed to users.
 # Costs are in nanodollars / token. OpenAI reports dollars / 1_000_000 tokens; multiply by 1_000 to get nanodollars / token.
-# Changing name or friendly name necessitates re-registering commands.
+# Changing anything necessitates re-registering commands.
 models = [
-	{ name = "gpt-4o-mini", friendly_name = "GPT-4o mini", input_cost = 150, output_cost = 600 },
-	{ name = "gpt-4o", friendly_name = "GPT-4o", input_cost = 2_500, output_cost = 10_000 },
-	{ name = "gpt-3.5-turbo", friendly_name = "GPT-3.5 Turbo", input_cost = 500, output_cost = 1_500 },
-	{ name = "gpt-4.1", friendly_name = "GPT-4.1", input_cost = 2_000, output_cost = 8_000 },
-	{ name = "gpt-4.1-mini", friendly_name = "GPT-4.1 mini", input_cost = 400, output_cost = 1_600 },
-	{ name = "gpt-4.1-nano", friendly_name = "GPT-4.1 nano", input_cost = 100, output_cost = 400 },
+	{ name = "gpt-4o-mini", friendly_name = "GPT-4o mini", input_cost = 150, output_cost = 600, api_version = 1 },
+	{ name = "gpt-4o", friendly_name = "GPT-4o", input_cost = 2_500, output_cost = 10_000, api_version = 1 },
+	{ name = "gpt-3.5-turbo", friendly_name = "GPT-3.5 Turbo", input_cost = 500, output_cost = 1_500, api_version = 1 },
+	{ name = "gpt-4.1", friendly_name = "GPT-4.1", input_cost = 2_000, output_cost = 8_000, api_version = 1 },
+	{ name = "gpt-4.1-mini", friendly_name = "GPT-4.1 mini", input_cost = 400, output_cost = 1_600, api_version = 1 },
+	{ name = "gpt-4.1-nano", friendly_name = "GPT-4.1 nano", input_cost = 100, output_cost = 400, api_version = 1 },
+	{ name = "gpt-5", friendly_name = "GPT-5", input_cost = 1250, output_cost = 10_000, api_version = 2 },
+	{ name = "gpt-5-mini", friendly_name = "GPT-5 mini", input_cost = 250, output_cost = 2_000, api_version = 2 },
+	{ name = "gpt-5-nano", friendly_name = "GPT-5 nano", input_cost = 50, output_cost = 400, api_version = 2 },
 	#{ name = "gpt-4", friendly_name = "GPT-4", input_cost = 30_000, output_cost = 60_000 },
 ]
 
@@ -33,6 +36,7 @@ personalities = [
 	{ name = "intellectual", emoji = "🧠", system_message = "Reply in an intellectual and detached way. Try to find wisdom in questions that seem foolish on the surface. Still answer the actual question. Be succinct." },
 	{ name = "hippie", emoji = "☮️", system_message = "Answer questions in the style of a '60s free love, stoner, vegan hippie. Be succinct." },
 	{ name = "bombastic", emoji = "📣", system_message = "You are someone who talks like an exaggerated version of Trump. Answer the user's questions helpfully and briefly." },
+	{ name = "corporate", emoji = "👨‍💼", system_message = "Talk like a middle manager. Sprinkle corporate jargon, especially the useless kind, throughout your reply. Try to be brief." },
 ]
 
 # One-off interactions, slash commands with more specific purposes, with replies that can't be replied to to continue a conversation

@@ -15,9 +15,6 @@ use crate::{
 	util::{format_chat_message, reply},
 };
 
-const TEMPERATURE: f32 = 0.5;
-const MAX_TOKENS: u32 = 400;
-
 impl Gpt {
 	/// Start or continue a conversation, based on the presence of `parent`.
 	pub async fn query(
@@ -78,8 +75,7 @@ impl Gpt {
 			.send(
 				&history,
 				model.name(),
-				TEMPERATURE,
-				MAX_TOKENS,
+				model.api_version(),
 				authorization_header,
 			)
 			.await
@@ -140,11 +136,11 @@ impl Gpt {
 
 	/// Start a new conversation.
 	async fn start_conversation(
-		&self,
+		&'_ self,
 		executor: &Pool<Sqlite>,
 		message: &Message,
 		input: &str,
-	) -> (Vec<ChatMessage>, Personality) {
+	) -> (Vec<ChatMessage>, Personality<'_>) {
 		let personality = get_user_personality(executor, message.author.id)
 			.await
 			.and_then(|name| self.get_personality_by_name(&name))
@@ -159,11 +155,11 @@ impl Gpt {
 
 	/// Attempt to continue an existing conversation from a reply.
 	async fn continue_conversation(
-		&self,
+		&'_ self,
 		executor: &Pool<Sqlite>,
 		parent: MessageIds,
 		input: &str,
-	) -> Option<(Vec<ChatMessage>, Personality)> {
+	) -> Option<(Vec<ChatMessage>, Personality<'_>)> {
 		let personality = get_message_personality(executor, parent)
 			.await
 			.and_then(|per| self.get_personality_by_name(&per))

@@ -17,7 +17,7 @@ impl Personality<'_> {
 		}
 	}
 	/// The string identifying this personality in the database.
-	pub fn database_name(&self) -> Cow<str> {
+	pub fn database_name(&'_ self) -> Cow<'_, str> {
 		match self {
 			Self::Preset(_) => Cow::Borrowed(self.name()),
 			Self::Custom(message) => Cow::Owned(wrap_custom(message)),

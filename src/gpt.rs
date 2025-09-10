@@ -15,6 +15,9 @@ use crate::{
 	response_styles::{extract_custom, Personality, PersonalityPreset},
 };
 
+const TEMPERATURE: f32 = 0.5;
+const MAX_TOKENS: u32 = 400;
+
 // The client that operates the GPT API
 #[derive(Debug, Clone)]
 pub struct Gpt {
@@ -59,39 +62,30 @@ impl Gpt {
 		&self,
 		history: &[ChatMessage],
 		model: &str,
-		temperature: f32,
-		max_tokens: u32,
+		api_version: u32,
 		authorization_header: &HeaderValue,
 	) -> Result<CompletionResponse, String> {
 		let response = self
 			.client
 			.post(self.api_url.clone())
 			.header(AUTHORIZATION, authorization_header)
-			.json(&CompletionRequest {
-				model,
-				messages: history,
-				stream: false,
-				temperature,
-				top_p: 1.0,
-				frequency_penalty: 0.0,
-				presence_penalty: 0.0,
-				reply_count: 1,
-				max_tokens,
-			})
+			.json(&CompletionRequest::new(model, api_version).with_messages(history))
 			.send()
 			.await
 			.map_err(|error| {
 				println!("{error}");
 				String::from("Boop beep, problem sending request.")
 			})?;
-		// let response_text = response.text().await;
-		// println!("{:?}", response_text);
-		// return Err("Testing".into());
-		let response_debug = format!("{:?}", response);
-		let response: ServerResponse = response.json().await.map_err(|error| {
-			println!("{error}, {:?}", response_debug);
-			String::from("Boop beep, problem deserialising response.")
+
+		let response = response.json_or_raw().await.map_err(|err| {
+			println!("{err}");
+			String::from("Bloop bloop, unknown error")
 		})?;
+
+		// let (response, text) = response.json_and_text().await;
+		// println!("{text}");
+		// println!("{response:?}");
+
 		match response {
 			ServerResponse::Error { error } => {
 				eprintln!("Backend error: {}, {}", error.message, error.error_type);
@@ -105,6 +99,7 @@ impl Gpt {
 			}
 			ServerResponse::Completion(completion) => {
 				if [
+					completion.usage.completion_tokens_details.reasoning_tokens,
 					completion
 						.usage
 						.completion_tokens_details
@@ -121,6 +116,7 @@ impl Gpt {
 				.iter()
 				.any(|tokens| *tokens != 0)
 				{
+					println!("Some of the fancier token costs included in response:");
 					println!("{}", completion.message_choices[0].message.content);
 					println!("{:?}", completion.usage);
 				}
@@ -187,6 +183,7 @@ pub struct GptModel {
 	friendly_name: String,
 	input_cost: u32,
 	output_cost: u32,
+	api_version: u32,
 }
 
 impl GptModel {
@@ -217,6 +214,9 @@ impl GptModel {
 			self.input_cost as f32 / 1000.0,
 			self.output_cost as f32 / 1000.0
 		)
+	}
+	pub fn api_version(&self) -> u32 {
+		self.api_version
 	}
 }
 
@@ -272,21 +272,42 @@ pub struct CompletionRequest<'a> {
 	pub model: &'a str,
 	/// The message history, including the message that requires completion, which should be the last one
 	pub messages: &'a [ChatMessage],
-	/// Whether the message response should be gradually streamed
-	pub stream: bool,
 	/// The extra randomness of response
-	pub temperature: f32,
-	/// Controls diversity via nucleus sampling, not recommended to use with temperature
-	pub top_p: f32,
-	/// Determines how much to penalize new tokens based on their existing frequency so far
-	pub frequency_penalty: f32,
-	/// Determines how much to penalize new tokens pased on their existing presence so far
-	pub presence_penalty: f32,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub temperature: Option<f32>,
 	/// Determines the number of output responses
 	#[serde(rename = "n")]
 	pub reply_count: u32,
 	/// The maximum number of tokens to generate in the chat completion
-	pub max_tokens: u32,
+	pub max_completion_tokens: u32,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	verbosity: Option<&'static str>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	reasoning_effort: Option<&'static str>,
+}
+
+impl<'a> CompletionRequest<'a> {
+	pub fn new(model: &'a str, api_version: u32) -> Self {
+		let is_new_api = api_version != 1;
+
+		Self {
+			model,
+			messages: &[],
+			temperature: (!is_new_api).then_some(TEMPERATURE),
+			reply_count: 1,
+			max_completion_tokens: if is_new_api {
+				MAX_TOKENS * 4
+			} else {
+				MAX_TOKENS
+			},
+			verbosity: is_new_api.then_some("low"),
+			reasoning_effort: is_new_api.then_some("minimal"),
+		}
+	}
+	pub fn with_messages(mut self, messages: &'a [ChatMessage]) -> Self {
+		self.messages = messages;
+		self
+	}
 }
 
 /// Represents a response from the API
@@ -375,4 +396,40 @@ pub struct CompletionTokenDetails {
 	pub accepted_prediction_tokens: u32,
 	/// "When using Predicted Outputs, the number of tokens in the prediction that did not appear in the completion. However, like reasoning tokens, these tokens are still counted in the total completion tokens for purposes of billing, output, and context window limits."
 	pub rejected_prediction_tokens: u32,
+}
+
+#[extend::ext]
+impl reqwest::Response {
+	async fn json_and_text(self) -> (ServerResponse, String) {
+		let default_encoding = "utf-8";
+		let content_type = self
+			.headers()
+			.get(reqwest::header::CONTENT_TYPE)
+			.and_then(|value| value.to_str().ok())
+			.and_then(|value| value.parse::<mime::Mime>().ok());
+		let encoding_name = content_type
+			.as_ref()
+			.and_then(|mime| mime.get_param("charset").map(|charset| charset.as_str()))
+			.unwrap_or(default_encoding);
+		let encoding = encoding_rs::Encoding::for_label(encoding_name.as_bytes())
+			.unwrap_or(encoding_rs::UTF_8);
+
+		let bytes = self.bytes().await.unwrap();
+
+		let (text, _, _) = encoding.decode(&bytes);
+
+		let response: ServerResponse = serde_json::from_slice(&bytes).unwrap();
+
+		(response, text.to_string())
+	}
+	async fn json_or_raw<T: serde::de::DeserializeOwned>(self) -> Result<T, String> {
+		let status_code = self.status();
+		let full = self
+			.bytes()
+			.await
+			.map_err(|_| String::from("Problem getting response body as Bytes"))?;
+
+		serenity::json::from_slice(&full)
+			.map_err(|err| format!("Error: {err}, status code: {status_code}, response: {full:?}"))
+	}
 }

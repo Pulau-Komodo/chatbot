@@ -13,9 +13,6 @@ use crate::{
 	util::{format_chat_message, interaction_followup},
 };
 
-const TEMPERATURE: f32 = 0.5;
-const MAX_TOKENS: u32 = 400;
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct OneOffCommand {
 	name: String,
@@ -103,8 +100,7 @@ impl Gpt {
 					ChatMessage::user(input.to_string()),
 				],
 				model.name(),
-				TEMPERATURE,
-				MAX_TOKENS,
+				model.api_version(),
 				authorization_header,
 			)
 			.await?;
