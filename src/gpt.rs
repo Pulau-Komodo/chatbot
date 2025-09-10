@@ -210,6 +210,14 @@ impl GptModel {
 			self.output_cost as f32 / 1000.0
 		)
 	}
+	/// Get a brief description of the cost of this model.
+	pub fn get_brief_cost_description(&self) -> String {
+		format!(
+			"{}$/1M in, {}$/1M out",
+			self.input_cost as f32 / 1000.0,
+			self.output_cost as f32 / 1000.0
+		)
+	}
 }
 
 /// A role of a message sender, can be:

@@ -105,11 +105,22 @@ pub fn register_set_model(gpt: &Gpt) -> CreateCommand {
 	)
 	.required(true)
 	.add_string_choice(
-		format!("{} (default)", gpt.default_model().friendly_name()),
+		format!(
+			"{} (default) 💸 ({})",
+			gpt.default_model().friendly_name(),
+			gpt.default_model().get_brief_cost_description()
+		),
 		gpt.default_model().name(),
 	);
 	for model in &gpt.models()[1..] {
-		model_option = model_option.add_string_choice(model.friendly_name(), model.name());
+		model_option = model_option.add_string_choice(
+			format!(
+				"{} 💸 ({})",
+				model.friendly_name(),
+				model.get_brief_cost_description()
+			),
+			model.name(),
+		);
 	}
 
 	CreateCommand::new("model")
