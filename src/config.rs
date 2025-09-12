@@ -16,6 +16,7 @@ pub struct Config {
 	pub daily_allowance: u32,
 	pub accrual_days: f32,
 	pub models: Vec<GptModel>,
+	pub search_models: Vec<GptModel>,
 	pub personalities: Vec<PersonalityPreset>,
 	pub one_offs: Vec<OneOffCommand>,
 	pub prototyping_roles: Vec<RoleId>,
@@ -33,6 +34,7 @@ impl From<PartialConfig> for Config {
 			daily_allowance: value.daily_allowance.unwrap_or(DEFAULT_DAILY_ALLOWANCE),
 			accrual_days: value.accrual_days.unwrap_or(DEFAULT_ACCRUAL_DAYS),
 			models: value.models.expect("There needs to be at least one model."),
+			search_models: value.search_models.unwrap_or_default(),
 			personalities: value
 				.personalities
 				.expect("There needs to be at least one personality."),
@@ -61,6 +63,7 @@ struct PartialConfig {
 	daily_allowance: Option<u32>,
 	accrual_days: Option<f32>,
 	models: Option<Vec<GptModel>>,
+	search_models: Option<Vec<GptModel>>,
 	personalities: Option<Vec<PersonalityPreset>>,
 	one_offs: Option<Vec<OneOffCommand>>,
 	prototyping_roles: Option<Vec<RoleId>>,

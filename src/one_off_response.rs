@@ -21,6 +21,7 @@ pub struct OneOffCommand {
 	argument: String,
 	argument_description: String,
 	system_message: String,
+	model_override: Option<String>,
 }
 
 impl OneOffCommand {
@@ -53,6 +54,7 @@ impl OneOffCommand {
 			executor,
 			&self.emoji,
 			&self.system_message,
+			self.model_override.as_deref(),
 		)
 		.await
 	}
@@ -67,6 +69,7 @@ impl Gpt {
 		system_message: &str,
 		emoji: &str,
 		input: &str,
+		model_override: Option<&str>,
 	) -> Result<String, String> {
 		let custom_authorization_header = self.custom_authorization_header(user);
 
@@ -85,10 +88,15 @@ impl Gpt {
 			));
 		}
 
-		let model = get_model_setting(executor, user)
-			.await
-			.and_then(|name| self.get_model_by_name(&name))
-			.unwrap_or(self.default_model());
+		let model = match model_override {
+			Some(name) => self
+				.get_model_by_name(name)
+				.expect("The model override model was not present"),
+			None => get_model_setting(executor, user)
+				.await
+				.and_then(|name| self.get_model_by_name(&name))
+				.unwrap_or(self.default_model()),
+		};
 
 		let authorization_header =
 			custom_authorization_header.unwrap_or(self.authorization_header());
@@ -133,6 +141,7 @@ async fn single_text_input_with_system_message(
 	executor: &Pool<Sqlite>,
 	emoji: &str,
 	system_message: &str,
+	model_override: Option<&str>,
 ) -> Result<(), ()> {
 	let Some(input) = interaction
 		.data
@@ -146,15 +155,22 @@ async fn single_text_input_with_system_message(
 	interaction.defer(&context).await.map_err(|_| ())?;
 
 	let response = match gpt
-		.one_off(executor, interaction.user.id, system_message, emoji, input)
+		.one_off(
+			executor,
+			interaction.user.id,
+			system_message,
+			emoji,
+			input,
+			model_override,
+		)
 		.await
 	{
 		Ok(response) => response,
 		Err(error) => {
-			let _ = interaction_followup(context, interaction, error, true).await;
+			let _ = interaction_followup(context, interaction, error, true, false).await;
 			return Ok(());
 		}
 	};
-	let _ = interaction_followup(context, interaction, response, false).await;
+	let _ = interaction_followup(context, interaction, response, false, true).await;
 	Ok(())
 }

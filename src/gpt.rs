@@ -46,7 +46,10 @@ impl Gpt {
 
 		let authorization_header =
 			HeaderValue::from_bytes(format!("Bearer {api_key}").as_bytes()).unwrap();
-		let client = reqwest::Client::new();
+		let client = reqwest::ClientBuilder::new()
+			.timeout(core::time::Duration::from_secs(120))
+			.build()
+			.unwrap();
 
 		Ok(Self {
 			client,
@@ -137,7 +140,11 @@ impl Gpt {
 		self.config.accrual_days
 	}
 	pub fn get_model_by_name(&self, name: &str) -> Option<&GptModel> {
-		self.config.models.iter().find(|model| model.name() == name)
+		self.config
+			.models
+			.iter()
+			.chain(&self.config.search_models)
+			.find(|model| model.name() == name)
 	}
 	pub fn default_model(&self) -> &GptModel {
 		self.config.models.first().unwrap() // There should always be at least one model, enforced on creating `Config`.
@@ -275,9 +282,6 @@ pub struct CompletionRequest<'a> {
 	/// The extra randomness of response
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub temperature: Option<f32>,
-	/// Determines the number of output responses
-	#[serde(rename = "n")]
-	pub reply_count: u32,
 	/// The maximum number of tokens to generate in the chat completion
 	pub max_completion_tokens: u32,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -288,13 +292,13 @@ pub struct CompletionRequest<'a> {
 
 impl<'a> CompletionRequest<'a> {
 	pub fn new(model: &'a str, api_version: u32) -> Self {
-		let is_new_api = api_version != 1;
+		let is_new_api = api_version == 2;
+		let is_search_api = api_version == 3;
 
 		Self {
 			model,
 			messages: &[],
-			temperature: (!is_new_api).then_some(TEMPERATURE),
-			reply_count: 1,
+			temperature: (!is_new_api && !is_search_api).then_some(TEMPERATURE),
 			max_completion_tokens: if is_new_api {
 				MAX_TOKENS * 4
 			} else {

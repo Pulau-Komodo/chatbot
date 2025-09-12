@@ -79,12 +79,13 @@ pub async fn interaction_followup<S>(
 	interaction: CommandInteraction,
 	content: S,
 	ephemeral: bool,
+	always_embed: bool,
 ) -> Result<(), SerenityError>
 where
 	S: Into<String>,
 {
 	let content: String = content.into();
-	if content.chars().count() <= constants::MESSAGE_CODE_LIMIT {
+	if !always_embed && content.chars().count() <= constants::MESSAGE_CODE_LIMIT {
 		interaction
 			.create_followup(
 				&context.http,
