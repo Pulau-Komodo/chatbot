@@ -148,7 +148,7 @@ impl Gpt {
 			.unwrap_or(Personality::Preset(self.default_personality()));
 		let history = [
 			ChatMessage::system(personality.system_message().to_string()),
-			ChatMessage::user(input.to_string()),
+			ChatMessage::user(input.to_string(), None),
 		]
 		.to_vec();
 		(history, personality)
@@ -172,7 +172,7 @@ impl Gpt {
 			// Found no actual history, so ignore this message. This most typically happens when replying to a bot message that was not a GPT response, like an error message.
 			return None;
 		}
-		history.push(ChatMessage::user(input.to_string()));
+		history.push(ChatMessage::user(input.to_string(), None));
 		Some((history, personality))
 	}
 }
@@ -219,7 +219,7 @@ async fn get_history_from_database(
 	std::iter::once(ChatMessage::system(system_message))
 		.chain(stored_history.into_iter().rev().flat_map(|record| {
 			[
-				ChatMessage::user(record.input),
+				ChatMessage::user(record.input, None),
 				ChatMessage::assistant(record.output),
 			]
 		}))

@@ -105,7 +105,7 @@ impl Gpt {
 			.send(
 				&[
 					ChatMessage::system(system_message.to_string()),
-					ChatMessage::user(input.to_string()),
+					ChatMessage::user(input.to_string(), None),
 				],
 				model.name(),
 				model.api_version(),

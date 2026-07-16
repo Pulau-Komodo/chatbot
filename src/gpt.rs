@@ -257,6 +257,8 @@ pub struct ChatMessage {
 	pub role: Role,
 	/// Actual content of the message
 	pub content: String,
+	/// "Provides the model information to differentiate between participants of the same role."
+	pub name: Option<String>,
 }
 
 impl ChatMessage {
@@ -264,18 +266,21 @@ impl ChatMessage {
 		Self {
 			role: Role::System,
 			content,
+			name: None,
 		}
 	}
 	pub fn assistant(content: String) -> Self {
 		Self {
 			role: Role::Assistant,
 			content,
+			name: None,
 		}
 	}
-	pub fn user(content: String) -> Self {
+	pub fn user(content: String, name: Option<String>) -> Self {
 		Self {
 			role: Role::User,
 			content,
+			name,
 		}
 	}
 }
