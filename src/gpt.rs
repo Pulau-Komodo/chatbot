@@ -295,11 +295,11 @@ pub struct CompletionRequest<'a> {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	verbosity: Option<&'static str>,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	reasoning_effort: Option<&'static str>,
+	reasoning_effort: Option<&'a str>,
 }
 
 impl<'a> CompletionRequest<'a> {
-	pub fn new(model: &'a str, api_version: u32) -> Self {
+	pub fn new(model: &'a str, api_version: u32, reasoning_effort: Option<&'a str>) -> Self {
 		let is_new_api = api_version == 2;
 		let is_search_api = api_version == 3;
 
