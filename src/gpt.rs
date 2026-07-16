@@ -313,7 +313,7 @@ impl<'a> CompletionRequest<'a> {
 				MAX_TOKENS
 			},
 			verbosity: is_new_api.then_some("low"),
-			reasoning_effort: is_new_api.then_some("minimal"),
+			reasoning_effort,
 		}
 	}
 	pub fn with_messages(mut self, messages: &'a [ChatMessage]) -> Self {
