@@ -76,6 +76,7 @@ impl Gpt {
 				&history,
 				model.name(),
 				model.api_version(),
+				model.reasoning_effort(),
 				authorization_header,
 			)
 			.await

@@ -66,13 +66,17 @@ impl Gpt {
 		history: &[ChatMessage],
 		model: &str,
 		api_version: u32,
+		reasoning_effort: Option<&str>,
 		authorization_header: &HeaderValue,
 	) -> Result<CompletionResponse, String> {
 		let response = self
 			.client
 			.post(self.api_url.clone())
 			.header(AUTHORIZATION, authorization_header)
-			.json(&CompletionRequest::new(model, api_version).with_messages(history))
+			.json(
+				&CompletionRequest::new(model, api_version, reasoning_effort)
+					.with_messages(history),
+			)
 			.send()
 			.await
 			.map_err(|error| {
@@ -191,6 +195,7 @@ pub struct GptModel {
 	input_cost: u32,
 	output_cost: u32,
 	api_version: u32,
+	reasoning_effort: Option<String>,
 }
 
 impl GptModel {
@@ -224,6 +229,9 @@ impl GptModel {
 	}
 	pub fn api_version(&self) -> u32 {
 		self.api_version
+	}
+	pub fn reasoning_effort(&self) -> Option<&str> {
+		self.reasoning_effort.as_deref()
 	}
 }
 
@@ -299,7 +307,7 @@ impl<'a> CompletionRequest<'a> {
 			model,
 			messages: &[],
 			temperature: (!is_new_api && !is_search_api).then_some(TEMPERATURE),
-			max_completion_tokens: if is_new_api {
+			max_completion_tokens: if reasoning_effort.is_none_or(|effort| effort == "none") {
 				MAX_TOKENS * 4
 			} else {
 				MAX_TOKENS
