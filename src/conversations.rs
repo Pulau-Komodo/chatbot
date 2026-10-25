@@ -12,7 +12,7 @@ use crate::{
 	gpt::{ChatMessage, Gpt},
 	response_styles::Personality,
 	user_settings::{get_model_setting, get_user_personality},
-	util::{format_chat_message, reply},
+	util::{reply, truncate_and_format_chat_message},
 };
 
 impl Gpt {
@@ -101,12 +101,12 @@ impl Gpt {
 
 		let guild_id = message.guild_id.unwrap();
 
-		let full_reply = format_chat_message(
+		let full_reply = truncate_and_format_chat_message(
 			&response.message_choices[0],
 			personality.emoji(),
 			cost,
 			allowance,
-			(model.name() != self.default_model().name()).then_some(model),
+			Some(model),
 		);
 		let output = &response.message_choices[0].message.content;
 		let own_message = reply(message, &context.http, full_reply).await.unwrap();
