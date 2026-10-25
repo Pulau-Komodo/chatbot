@@ -83,7 +83,9 @@ impl Gpt {
 		{
 			Ok(response) => response,
 			Err(error_message) => {
-				message.reply(context.http, error_message).await.unwrap();
+				if let Err(err) = message.reply(context.http, error_message).await {
+					eprintln!("Failed to send error message: {err:?}");
+				}
 				return;
 			}
 		};
