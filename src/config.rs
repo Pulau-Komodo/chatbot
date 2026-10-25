@@ -8,7 +8,7 @@ use crate::{
 	allowances::{DEFAULT_ACCRUAL_DAYS, DEFAULT_DAILY_ALLOWANCE},
 	gpt::GptModel,
 	one_off_response::OneOffCommand,
-	response_styles::{extract_custom, PersonalityPreset},
+	response_styles::{PersonalityPreset, extract_custom},
 };
 
 #[derive(Debug, Clone)]

@@ -2,8 +2,8 @@
 //! But there is almost nothing left of it.
 
 use reqwest::{
-	header::{HeaderValue, AUTHORIZATION},
 	Url,
+	header::{AUTHORIZATION, HeaderValue},
 };
 use serde::{Deserialize, Serialize};
 use serenity::all::{RoleId, UserId};
@@ -12,7 +12,7 @@ use std::{collections::HashMap, fmt::Display};
 use crate::{
 	config::{Config, CustomApiKeys},
 	one_off_response::OneOffCommand,
-	response_styles::{extract_custom, Personality, PersonalityPreset},
+	response_styles::{Personality, PersonalityPreset, extract_custom},
 };
 
 const TEMPERATURE: f32 = 0.5;

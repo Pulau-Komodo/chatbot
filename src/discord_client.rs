@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use serenity::{all::Cache, async_trait, model::prelude::*, prelude::*};
-use sqlx::{query, Pool, Sqlite};
+use sqlx::{Pool, Sqlite, query};
 
 use crate::{allowances, conversations::MessageIds, gpt::Gpt, user_settings};
 

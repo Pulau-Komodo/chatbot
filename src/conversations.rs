@@ -5,7 +5,7 @@ use serenity::{
 	model::prelude::{Message, MessageId},
 	prelude::Context,
 };
-use sqlx::{query, Pool, Sqlite};
+use sqlx::{Pool, Sqlite, query};
 
 use crate::{
 	allowances::{allowance_and_max, spend_allowance},

@@ -1,9 +1,8 @@
 use std::path::Path;
 
 use sqlx::{
-	migrate,
+	Pool, Sqlite, migrate,
 	sqlite::{SqliteConnectOptions, SqlitePoolOptions},
-	Pool, Sqlite,
 };
 
 pub async fn init_database<P: AsRef<Path>>(path: P) -> Pool<Sqlite> {

@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 use serenity::all::{CommandInteraction, CommandOptionType};
 use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::{model::prelude::UserId, prelude::Context};
-use sqlx::{query, Pool, Sqlite};
+use sqlx::{Pool, Sqlite, query};
 
 use crate::gpt::{GptModel, TokenUsage};
 use crate::util::interaction_reply;
