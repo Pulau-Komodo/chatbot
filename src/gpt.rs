@@ -244,6 +244,8 @@ impl GptModel {
 pub enum Role {
 	/// A system message, automatically sent at the start to set the tone of the model
 	System,
+	/// A developer message. "With o1 models and newer, `developer` messages replace the previous `system` messages."
+	Developer,
 	/// A message sent by GPT
 	Assistant,
 	/// A message sent by the user
@@ -264,7 +266,7 @@ pub struct ChatMessage {
 impl ChatMessage {
 	pub fn system(content: String) -> Self {
 		Self {
-			role: Role::System,
+			role: Role::Developer,
 			content,
 			name: None,
 		}
