@@ -3,7 +3,7 @@ use serenity::{
 	builder::{CreateCommand, CreateCommandOption},
 	prelude::Context,
 };
-use sqlx::{query, Pool, Sqlite};
+use sqlx::{Pool, Sqlite, query};
 
 use crate::{gpt::Gpt, response_styles::wrap_custom, util::interaction_reply};
 
@@ -263,7 +263,9 @@ pub async fn command_set_custom_personality(
 
 pub fn register_set_custom_personality() -> CreateCommand {
 	CreateCommand::new("custom_personality")
-		.description("Set a custom personality for new conversations started by you. This is meant for prototyping.")
+		.description(
+			"Set a custom personality for new conversations started by you. This is meant for prototyping.",
+		)
 		.add_option(
 			CreateCommandOption::new(
 				CommandOptionType::String,
