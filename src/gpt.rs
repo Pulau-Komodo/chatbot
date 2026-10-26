@@ -151,7 +151,7 @@ impl Gpt {
 			.find(|model| model.name() == name)
 	}
 	pub fn default_model(&self) -> &GptModel {
-		self.config.models.first().unwrap() // There should always be at least one model, enforced on creating `Config`.
+		&self.config.default_model
 	}
 	/// The available models, excluding default.
 	pub fn models(&self) -> &Vec<GptModel> {
@@ -196,6 +196,8 @@ pub struct GptModel {
 	output_cost: u32,
 	api_version: u32,
 	reasoning_effort: Option<String>,
+	#[serde(default)]
+	is_default: bool,
 }
 
 impl GptModel {
@@ -232,6 +234,9 @@ impl GptModel {
 	}
 	pub fn reasoning_effort(&self) -> Option<&str> {
 		self.reasoning_effort.as_deref()
+	}
+	pub fn is_default(&self) -> bool {
+		self.is_default
 	}
 }
 

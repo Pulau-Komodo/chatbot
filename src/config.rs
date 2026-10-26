@@ -15,6 +15,7 @@ use crate::{
 pub struct Config {
 	pub daily_allowance: u32,
 	pub accrual_days: f32,
+	pub default_model: GptModel,
 	pub models: Vec<GptModel>,
 	pub search_models: Vec<GptModel>,
 	pub personalities: Vec<PersonalityPreset>,
@@ -30,20 +31,31 @@ impl Config {
 
 impl From<PartialConfig> for Config {
 	fn from(value: PartialConfig) -> Self {
+		let models = value
+			.models
+			.expect("There needs to be a models field, with at least one model.");
+		let mut default_models = models.iter().filter(|model| model.is_default());
+		let default_model = match (default_models.next(), default_models.next()) {
+			(Some(_), Some(_)) => panic!("There can only be one default model."),
+			(Some(model), None) => model.clone(),
+			(None, _) => models
+				.first()
+				.expect("There needs to be at least one model.")
+				.clone(),
+		};
+
 		let config = Self {
 			daily_allowance: value.daily_allowance.unwrap_or(DEFAULT_DAILY_ALLOWANCE),
 			accrual_days: value.accrual_days.unwrap_or(DEFAULT_ACCRUAL_DAYS),
-			models: value.models.expect("There needs to be at least one model."),
+			default_model,
+			models,
 			search_models: value.search_models.unwrap_or_default(),
 			personalities: value
 				.personalities
-				.expect("There needs to be at least one personality."),
+				.expect("There needs to be a personalities field, with at least one personality."),
 			one_offs: value.one_offs.unwrap_or_default(),
 			prototyping_roles: value.prototyping_roles.unwrap_or_default(),
 		};
-		if config.models.is_empty() {
-			panic!("There needs to be at least one model.");
-		}
 		if config.personalities.is_empty() {
 			panic!("There needs to be at least one personality.");
 		}
@@ -53,6 +65,11 @@ impl From<PartialConfig> for Config {
 			.any(|p| extract_custom(p.name()).is_some())
 		{
 			panic!("Don't name any personality \"custom(whatever)\".");
+		}
+		if config.models.iter().any(|m| m.name() == "default") {
+			panic!(
+				"Is there actually a model with an internal name of \"default\"? That's going to cause problems."
+			);
 		}
 		config
 	}

@@ -63,9 +63,7 @@ pub async fn command_set_model(
 	executor: &Pool<Sqlite>,
 	gpt: &Gpt,
 ) -> Result<(), ()> {
-	let current_model_name = get_model_setting(executor, interaction.user.id)
-		.await
-		.unwrap_or(gpt.default_model().name().to_string());
+	let current_model_name = get_model_setting(executor, interaction.user.id).await;
 	let new_model_name = interaction
 		.data
 		.options
@@ -74,24 +72,36 @@ pub async fn command_set_model(
 		.value
 		.as_str()
 		.unwrap();
-	let new_model = gpt.get_model_by_name(new_model_name).unwrap(); // To do: handle this more gracefully. It will panic if the database still has some model that later became unsupported.
-	let output = if current_model_name == new_model_name {
-		format!(
-			"Model was already set to {} ({}).",
-			new_model.friendly_name(),
-			new_model.get_cost_description()
-		)
-	} else {
-		if new_model == gpt.default_model() {
+	let new_model = (new_model_name != "default")
+		.then(|| gpt.get_model_by_name(new_model_name).ok_or(()))
+		.transpose()?;
+	let output = match (current_model_name, new_model) {
+		(None, None) => format!(
+			"Model was already set to default, currently {} ({})",
+			gpt.default_model().friendly_name(),
+			gpt.default_model().get_cost_description()
+		),
+		(Some(_), None) => {
 			set_model(executor, interaction.user.id, None).await;
-		} else {
-			set_model(executor, interaction.user.id, Some(new_model.name())).await;
+			format!(
+				"Model set to default, currently {} ({})",
+				gpt.default_model().friendly_name(),
+				gpt.default_model().get_cost_description()
+			)
 		}
-		format!(
-			"Model for your future prompts set to {} ({}).",
-			new_model.friendly_name(),
-			new_model.get_cost_description()
-		)
+		(Some(current), Some(new)) if current == new.name() => format!(
+			"Model was already set to {} ({}).",
+			new.friendly_name(),
+			new.get_cost_description()
+		),
+		(_, Some(new)) => {
+			set_model(executor, interaction.user.id, Some(new.name())).await;
+			format!(
+				"Model set to {} ({}).",
+				new.friendly_name(),
+				new.get_cost_description()
+			)
+		}
 	};
 	let _ = interaction_reply(context, interaction, output, true).await;
 	Ok(())
@@ -106,16 +116,17 @@ pub fn register_set_model(gpt: &Gpt) -> CreateCommand {
 	.required(true)
 	.add_string_choice(
 		format!(
-			"{} (default) 💸 ({})",
+			"default, currently: {} 💸 ({})",
 			gpt.default_model().friendly_name(),
 			gpt.default_model().get_brief_cost_description()
 		),
-		gpt.default_model().name(),
+		"default",
 	);
-	for model in &gpt.models()[1..] {
+	for model in gpt.models() {
+		let default_fragment = if model.is_default() { " (default)" } else { "" };
 		model_option = model_option.add_string_choice(
 			format!(
-				"{} 💸 ({})",
+				"{}{default_fragment} 💸 ({})",
 				model.friendly_name(),
 				model.get_brief_cost_description()
 			),

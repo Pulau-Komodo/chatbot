@@ -6,9 +6,9 @@ accrual_days = 4.0
 # AI models that can be chosen from.
 # Name is what will be sent to the API. Friendly name is what will be displayed to users.
 # Costs are in nanodollars / token. OpenAI reports dollars / 1_000_000 tokens; multiply by 1_000 to get nanodollars / token.
+# At most one can be marked explicitly as the default model. If none are marked default, the top model is default.
 # Changing anything except `api_version` necessitates re-registering commands.
 models = [
-	{ name = "gpt-6-luna", friendly_name = "GPT-6 Luna", input_cost = 100, output_cost = 500, api_version = 2, reasoning_effort = "none" },
 	{ name = "gpt-4o-mini", friendly_name = "GPT-4o mini", input_cost = 150, output_cost = 600, api_version = 1 },
 	{ name = "gpt-4o", friendly_name = "GPT-4o", input_cost = 2_500, output_cost = 10_000, api_version = 1 },
 	{ name = "gpt-4.1", friendly_name = "GPT-4.1", input_cost = 2_000, output_cost = 8_000, api_version = 1 },
@@ -25,6 +25,7 @@ models = [
 	{ name = "gpt-5.6-terra", friendly_name = "GPT-5.6 Terra", input_cost = 2_000, output_cost = 12_000, api_version = 2, reasoning_effort = "none" },
 	{ name = "gpt-5.6-luna", friendly_name = "GPT-5.6 Luna", input_cost = 200, output_cost = 1_200, api_version = 2, reasoning_effort = "none" },
 	{ name = "gpt-6-sol", friendly_name = "GPT-6 Sol", input_cost = 2_000, output_cost = 10_000, api_version = 2, reasoning_effort = "none" },
+	{ name = "gpt-6-luna", friendly_name = "GPT-6 Luna", input_cost = 100, output_cost = 500, api_version = 2, reasoning_effort = "none", is_default = true },
 ]
 
 search_models = [
