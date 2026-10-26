@@ -331,42 +331,42 @@ impl EventHandler for DiscordEventHandler {
 	async fn ready(&self, context: Context, _ready: Ready) {
 		println!("Ready");
 		let arg = std::env::args().nth(1);
-		if let Some(arg) = arg {
-			if &arg == "register" {
-				let mut command_count = 3 + self.gpt.one_offs().len();
-				if !self.gpt.models().is_empty() {
-					command_count += 1;
-				}
-				if self.gpt.personalities().len() > 1 {
-					command_count += 1;
-				}
-				let mut commands = Vec::with_capacity(command_count);
-				commands.extend([
-					allowances::register(),
-					allowances::register_check_expenditure(),
-				]);
-				if !self.gpt.models().is_empty() {
-					commands.push(user_settings::register_set_model(&self.gpt));
-				}
-				if self.gpt.personalities().len() > 1 {
-					commands.push(user_settings::register_set_personality(&self.gpt));
-				}
-				commands.push(user_settings::register_set_custom_personality());
-				for one_off in self.gpt.one_offs() {
-					commands.push(one_off.create());
-				}
-				for guild in context.cache.guilds() {
-					let commands = guild
-						.set_commands(&context.http, commands.clone())
-						.await
-						.unwrap();
-					let command_names = commands.into_iter().map(|command| command.name).join(", ");
-					println!(
-						"I now have the following guild slash commands in guild {}: {}",
-						guild.get(),
-						command_names
-					);
-				}
+		if let Some(arg) = arg
+			&& &arg == "register"
+		{
+			let mut command_count = 3 + self.gpt.one_offs().len();
+			if !self.gpt.models().is_empty() {
+				command_count += 1;
+			}
+			if self.gpt.personalities().len() > 1 {
+				command_count += 1;
+			}
+			let mut commands = Vec::with_capacity(command_count);
+			commands.extend([
+				allowances::register(),
+				allowances::register_check_expenditure(),
+			]);
+			if !self.gpt.models().is_empty() {
+				commands.push(user_settings::register_set_model(&self.gpt));
+			}
+			if self.gpt.personalities().len() > 1 {
+				commands.push(user_settings::register_set_personality(&self.gpt));
+			}
+			commands.push(user_settings::register_set_custom_personality());
+			for one_off in self.gpt.one_offs() {
+				commands.push(one_off.create());
+			}
+			for guild in context.cache.guilds() {
+				let commands = guild
+					.set_commands(&context.http, commands.clone())
+					.await
+					.unwrap();
+				let command_names = commands.into_iter().map(|command| command.name).join(", ");
+				println!(
+					"I now have the following guild slash commands in guild {}: {}",
+					guild.get(),
+					command_names
+				);
 			}
 		}
 	}
