@@ -109,38 +109,9 @@ where
 
 const MAX_CHARS: usize = 4096;
 
-/// Attaches formatting to the message from GPT, like "🤖 Hello. (-0.25 m$, 39.95 m$) (GPT-4)". Also truncates the GPT output if the message ended up too long
-pub fn truncate_and_format_chat_message(
-	response: &MessageChoice,
-	emoji: &str,
-	cost: Allowance,
-	allowance: Allowance,
-	model: Option<&GptModel>,
-) -> String {
-	let formatted = format_chat_message(response, emoji, cost, allowance, model);
-
-	let char_count = formatted.chars().count();
-	if let Some(excess_chars) = char_count.checked_sub(MAX_CHARS)
-		&& excess_chars > 0
-	{
-		let mut response = response.clone();
-
-		let end_index = response
-			.message
-			.content
-			.char_indices()
-			.nth_back(excess_chars - 1)
-			.map_or(0, |(i, _)| i);
-
-		response.message.content.truncate(end_index);
-
-		format_chat_message(&response, emoji, cost, allowance, model)
-	} else {
-		formatted
-	}
-}
-
 /// Attaches formatting to the message from GPT, like "🤖 Hello. (-0.25 m$, 39.95 m$) (GPT-4)".
+///
+/// Also truncates the GPT output to the maximum number of `char`s allowed in a Discord embed field, if the total message ended up too long.
 pub fn format_chat_message(
 	response: &MessageChoice,
 	emoji: &str,
@@ -148,21 +119,40 @@ pub fn format_chat_message(
 	allowance: Allowance,
 	model: Option<&GptModel>,
 ) -> String {
-	let output = &response.message.content;
+	let mut output = response.message.content.as_str();
 	let ending = ending_from_finish_reason(&response.finish_reason);
-	if let Some(model) = model {
+	let prefix = format!("{emoji} ");
+	let suffix = if let Some(model) = model {
 		format!(
-			"{} {}{} (-{}, {}) ({})",
-			emoji,
-			output,
+			"{} (-{}, {}) ({})",
 			ending,
 			cost,
 			allowance,
-			model.friendly_name(),
+			model.friendly_name()
 		)
 	} else {
-		format!("{} {}{} (-{}, {})", emoji, output, ending, cost, allowance,)
+		format!("{} (-{}, {})", ending, cost, allowance)
+	};
+
+	let char_count = prefix
+		.chars()
+		.chain(output.chars())
+		.chain(suffix.chars())
+		.count();
+	if let Some(excess_chars) = char_count.checked_sub(MAX_CHARS)
+		&& excess_chars > 0
+	{
+		let end_index = response
+			.message
+			.content
+			.char_indices()
+			.nth_back(excess_chars - 1)
+			.map_or(0, |(i, _)| i);
+
+		output = &output[0..end_index];
 	}
+
+	format!("{prefix}{output}{suffix}")
 }
 
 pub fn ending_from_finish_reason(finish_reason: &str) -> &'static str {
@@ -198,9 +188,7 @@ mod tests {
 		let cost = Allowance::Nanodollars(250_000);
 		let allowance = Allowance::Millidollars(20.0);
 
-		let long_output = format_chat_message(&response, emoji, cost, allowance, None);
-		assert_eq!(long_output.chars().count(), 5020);
-		let output = truncate_and_format_chat_message(&response, emoji, cost, allowance, None);
+		let output = format_chat_message(&response, emoji, cost, allowance, None);
 		assert_eq!(output.chars().count(), MAX_CHARS);
 	}
 }

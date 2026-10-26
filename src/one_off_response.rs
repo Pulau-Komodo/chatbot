@@ -10,7 +10,7 @@ use crate::{
 	allowances::{allowance_and_max, spend_allowance},
 	gpt::{ChatMessage, Gpt},
 	user_settings::get_model_setting,
-	util::{interaction_followup, truncate_and_format_chat_message},
+	util::{format_chat_message, interaction_followup},
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -125,7 +125,7 @@ impl Gpt {
 		)
 		.await;
 
-		Ok(truncate_and_format_chat_message(
+		Ok(format_chat_message(
 			&response.message_choices[0],
 			emoji,
 			cost,
